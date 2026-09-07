@@ -1,0 +1,41 @@
+# Python virtual environment
+/.venv/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Test and development-tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Project data and experiment outputs
+/data/
+/outputs/
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDE settings
+/.vscode/
+/.idea/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Temporary logs
+*.log
