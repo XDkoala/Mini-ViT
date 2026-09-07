@@ -9,7 +9,7 @@
 - [x] 创建项目目录和空文件
 - [x] 填写并验证 `requirements.txt`
 - [x] 配置 `.gitignore`
-- [ ] 初始化 Git 并完成首次提交
+- [x] 初始化 Git 并完成首次提交
 
 ## 1. Python 虚拟环境
 
@@ -285,6 +285,56 @@ Get-Content -LiteralPath '.gitignore'
 
 2026-09-07 验收通过：文件非空，所有计划规则存在，没有忽略 `assets/`、项目源码、配置、测试或 Markdown 文档。实际匹配行为将在 Git 初始化后复核。
 
-## 6. 下一步
+## 6. 初始化 Git 与首次提交
 
-初始化 Git，验证忽略规则，并完成项目首次提交。
+### 6.1 初始化和配置身份
+
+```powershell
+git init -b main
+git config user.name "你的名字"
+git config user.email "你的邮箱"
+```
+
+- `git init -b main` 创建本地仓库，并将初始分支命名为 `main`。
+- 不加 `--global` 的身份配置只作用于当前仓库。
+- `.git/` 保存提交历史、分支和仓库配置，不应手动修改或删除。
+
+### 6.2 验证忽略规则
+
+```powershell
+git status
+git check-ignore -v .venv\pyvenv.cfg data outputs
+```
+
+`git status` 中不应出现虚拟环境、数据和训练输出；`git check-ignore -v` 会显示目标命中了 `.gitignore` 中的哪条规则。
+
+### 6.3 暂存和提交
+
+```powershell
+git add .
+git diff --cached --name-status
+git commit -m "chore: initialize project structure"
+git log --oneline --decorate -1
+git status
+```
+
+工作区文件经 `git add` 进入暂存区，再由 `git commit` 保存为本地历史快照。提交不会自动创建 GitHub 仓库或上传文件。
+
+### 6.4 本机验收记录（2026-09-07）
+
+| 检查项 | 实测结果 |
+|---|---|
+| 当前分支 | `main` |
+| 首个提交 | `4edfcc1 chore: initialize project structure` |
+| 提交身份 | 已在当前仓库配置 |
+| `.venv` | 命中 `/.venv/`，未提交 |
+| `data` | 命中 `/data/`，未提交 |
+| `outputs` | 命中 `/outputs/`，未提交 |
+| 模型权重 | 未提交 |
+| 项目源码与文档 | 已提交 |
+
+Git 只跟踪文件，因此空的 `assets/` 暂时不会出现在提交中；以后加入展示图片后会正常被跟踪。
+
+## 7. 阶段 0 验收结论
+
+Python 虚拟环境、项目依赖、CUDA、目录骨架、依赖清单、忽略规则和本地 Git 仓库均已通过验收。阶段 0 的工程基础已经建立，可以进入阶段 1 的数据最小闭环。
