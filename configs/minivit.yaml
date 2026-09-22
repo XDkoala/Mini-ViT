@@ -1,0 +1,28 @@
+experiment:
+  name: minivit_baseline
+  output_dir: outputs/minivit_baseline
+
+seed: 42
+device: auto
+
+data:
+  data_dir: data
+  batch_size: 128
+  num_workers: 0
+
+model:
+  image_size: 32
+  in_channels: 3
+  num_classes: 10
+  patch_size: 4
+  embed_dim: 192
+  depth: 6
+  num_heads: 6
+  mlp_dim: 768
+  dropout: 0.1
+
+training:
+  epochs: 100
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.05
