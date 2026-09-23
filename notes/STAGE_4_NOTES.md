@@ -28,7 +28,7 @@ Tiny overfit 验证的是“模型和训练链能否学会”，不是泛化能�
 
 - `tests/test_tiny_overfit.py`：可重复执行的极小数据过拟合检查。
 - 必要时复用或小幅扩展 `src/data.py` 的数据接口。
-- `STAGE_4_NOTES.md`：记录机制、配置、曲线与验收结果。
+- `notes/STAGE_4_NOTES.md`：记录机制、配置、曲线与验收结果。
 
 本阶段不做：
 

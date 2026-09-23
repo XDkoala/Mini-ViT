@@ -1,6 +1,25 @@
-# Mini Vision Transformer 基础项目流程（新手版）
+# Mini Vision Transformer 基础项目工作流（实战更新版）
 
-> 本文只覆盖项目的基础必做部分。目标不是一次性写出一个“大而全”的工程，而是把项目拆成互相独立、可以逐个验证的小模块，最后再将它们组合成完整的图像分类项目。
+> 本文已根据 Mini ViT 项目的真实实现与实验结果更新。阶段 0–9 已完成；本文既保留可复用的学习路线，也作为代码、笔记、实验和命令的总导航。
+
+最后更新：2026-09-23
+
+## 当前进度
+
+| 阶段 | 内容 | 状态 | 详细记录 |
+|---:|---|---|---|
+| 0 | 环境、依赖、Git 与项目骨架 | 已完成 | [STAGE_0_NOTES.md](STAGE_0_NOTES.md) |
+| 1 | CIFAR-10 数据管线 | 已完成 | [STAGE_1_NOTES.md](STAGE_1_NOTES.md) |
+| 2 | MiniViT 基础零件 | 已完成 | [STAGE_2_NOTES.md](STAGE_2_NOTES.md) |
+| 3 | 完整 MiniViT 组装 | 已完成 | [STAGE_3_NOTES.md](STAGE_3_NOTES.md) |
+| 4 | Tiny Overfit 学习能力验证 | 已完成 | [STAGE_4_NOTES.md](STAGE_4_NOTES.md) |
+| 5 | 配置化训练闭环 | 已完成 | [STAGE_5_NOTES.md](STAGE_5_NOTES.md) |
+| 6 | SimpleCNN 对照基线 | 已完成 | [STAGE_6_NOTES.md](STAGE_6_NOTES.md) |
+| 7 | Patch、Depth、Augmentation 消融 | 已完成 | [STAGE_7_NOTES.md](STAGE_7_NOTES.md) |
+| 8 | 冻结模型测试与可视化 | 已完成 | [STAGE_8_NOTES.md](STAGE_8_NOTES.md) |
+| 9 | README 与仓库最终收尾 | 已完成 | [STAGE_9_NOTES.md](STAGE_9_NOTES.md) |
+
+实验配置、checkpoint 哈希、训练结果和最终测试指标统一记录在 [EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md)。
 
 ## 0. 先明确最终要交付什么
 
@@ -88,12 +107,21 @@
 Mini ViT/
 ├── README.md
 ├── PROJECT_PLAN.md
-├── BASIC_PROJECT_WORKFLOW.md
 ├── requirements.txt
 ├── .gitignore
+├── notes/
+│   ├── BASIC_PROJECT_WORKFLOW.md
+│   ├── EXPERIMENT_RESULTS.md
+│   └── STAGE_0_NOTES.md ... STAGE_8_NOTES.md
 ├── configs/
 │   ├── minivit.yaml
-│   └── cnn.yaml
+│   ├── cnn.yaml
+│   └── ablations/
+│       ├── patch_p2.yaml
+│       ├── patch_p8.yaml
+│       ├── depth_d3.yaml
+│       ├── depth_d9.yaml
+│       └── no_augmentation.yaml
 ├── src/
 │   ├── __init__.py
 │   ├── config.py
@@ -111,8 +139,16 @@ Mini ViT/
 │   ├── evaluate.py
 │   └── visualize.py
 ├── tests/
+│   ├── test_config.py
 │   ├── test_data.py
 │   ├── test_model.py
+│   ├── test_cnn.py
+│   ├── test_engine.py
+│   ├── test_train_script.py
+│   ├── test_evaluate_script.py
+│   ├── test_visualization.py
+│   ├── test_visualize_script.py
+│   ├── test_utils.py
 │   └── test_tiny_overfit.py
 ├── data/                 # 不提交到 Git
 ├── outputs/              # 不提交权重到 Git
@@ -121,11 +157,17 @@ Mini ViT/
 │       ├── best.pt
 │       ├── last.pt
 │       ├── history.csv
-│       └── metrics.json
-└── assets/               # 提交用于 README 展示的图片
+│       └── evaluation/
+│           ├── metrics.json
+│           └── predictions.csv
+└── assets/               # 提交用于 README 展示的最终图表
+    ├── training_curves/
+    ├── confusion_matrices/
+    ├── error_cases/
+    └── attention/
 ```
 
-为了避免文件过多，Patch Embedding、Attention、MLP、Encoder Block 和完整 MiniViT 可以先放在同一个 `src/models/minivit.py` 中，用不同类隔开。等项目完全跑通后，再考虑进一步拆文件。
+项目实际保留了这种学习友好的组织：Patch Embedding、Attention、MLP、Encoder Block 和完整 MiniViT 都在 `src/models/minivit.py` 中，用不同类隔开。模型职责仍然清楚，也便于沿着一次前向传播连续阅读。
 
 ---
 
@@ -231,11 +273,11 @@ pytest
 
 ### 4.4 验收关卡
 
-- [ ] `python --version` 能显示版本。
-- [ ] Python 中可以成功执行 `import torch` 和 `import torchvision`。
-- [ ] 能打印 `torch.cuda.is_available()` 的结果。
-- [ ] `pytest` 可以启动，即使此时还没有测试。
-- [ ] 目录中没有把虚拟环境、数据集或权重加入 Git。
+- [x] `python --version` 能显示版本。
+- [x] Python 中可以成功执行 `import torch` 和 `import torchvision`。
+- [x] 能打印 `torch.cuda.is_available()` 的结果。
+- [x] `pytest` 可以正常启动。
+- [x] 目录中没有把虚拟环境、数据集或权重加入 Git。
 
 ### 4.5 常见问题
 
@@ -305,11 +347,11 @@ label range = 0 到 9
 
 ### 5.6 验收关卡
 
-- [ ] 能独立运行数据模块并打印三个 batch 的 shape。
-- [ ] 数据数量正确，训练/验证索引无重叠。
-- [ ] 固定 seed 后划分不变。
-- [ ] 训练集有随机增强，验证集和测试集没有。
-- [ ] `tests/test_data.py` 通过。
+- [x] 能独立运行数据模块并打印三个 batch 的 shape。
+- [x] 数据数量正确，训练/验证索引无重叠。
+- [x] 固定 seed 后划分不变。
+- [x] 训练集有随机增强，验证集和测试集没有。
+- [x] `tests/test_data.py` 通过。
 
 ### 5.7 常见问题
 
@@ -357,8 +399,8 @@ nn.Conv2d(
 
 验收：
 
-- [ ] 输入 `[2, 3, 32, 32]`，输出严格为 `[2, 64, 192]`。
-- [ ] 输入尺寸不合法时给出清晰报错。
+- [x] 输入 `[2, 3, 32, 32]`，输出严格为 `[2, 64, 192]`。
+- [x] 输入尺寸不合法时给出清晰报错。
 
 ### 6.2 零件 B：Multi-Head Self-Attention
 
@@ -405,10 +447,10 @@ Dh = 每个 head 的维度，192 / 6 = 32
 
 验收：
 
-- [ ] 输入 `[2, 65, 192]`，输出 `[2, 65, 192]`。
-- [ ] attention shape 为 `[2, 6, 65, 65]`。
-- [ ] attention 最后一维求和接近 1。
-- [ ] 反向传播后 QKV Linear 的参数具有梯度。
+- [x] 输入 `[2, 65, 192]`，输出 `[2, 65, 192]`。
+- [x] attention shape 为 `[2, 6, 65, 65]`。
+- [x] attention 最后一维求和接近 1。
+- [x] 反向传播后 QKV Linear 的参数具有梯度。
 
 ### 6.3 零件 C：MLP
 
@@ -426,8 +468,8 @@ Linear(192, 768)
 
 验收：
 
-- [ ] 输入和输出 shape 都是 `[B, N, 192]`。
-- [ ] MLP 不改变 token 数量。
+- [x] 输入和输出 shape 都是 `[B, N, 192]`。
+- [x] MLP 不改变 token 数量。
 
 ### 6.4 零件 D：Transformer Encoder Block
 
@@ -444,9 +486,9 @@ x = x + mlp(norm2(x))
 
 验收：
 
-- [ ] 输入输出 shape 都是 `[2, 65, 192]`。
-- [ ] 前向结果有限，无 NaN/Inf。
-- [ ] loss 反向传播后 Attention 和 MLP 都有梯度。
+- [x] 输入输出 shape 都是 `[2, 65, 192]`。
+- [x] 前向结果有限，无 NaN/Inf。
+- [x] loss 反向传播后 Attention 和 MLP 都有梯度。
 
 ### 6.5 为什么要逐个测试
 
@@ -497,11 +539,11 @@ class MiniViT(nn.Module):
 
 ### 7.5 验收关卡
 
-- [ ] 输入 `[2, 3, 32, 32]`，输出 `[2, 10]`。
-- [ ] CrossEntropyLoss 能正常计算。
-- [ ] `loss.backward()` 不报错。
-- [ ] Patch Embedding、Attention、MLP、分类头都有梯度。
-- [ ] 所有模型测试通过。
+- [x] 输入 `[2, 3, 32, 32]`，输出 `[2, 10]`。
+- [x] CrossEntropyLoss 能正常计算。
+- [x] `loss.backward()` 不报错。
+- [x] Patch Embedding、Attention、MLP、分类头都有梯度。
+- [x] 所有模型测试通过。
 
 到这里为止，只能说明“代码在数学形状上可以运行”，还不能说明模型真的能学习。下一阶段用 tiny overfit 验证学习能力。
 
@@ -541,9 +583,9 @@ class MiniViT(nn.Module):
 
 ### 8.5 验收关卡
 
-- [ ] 64 张固定样本的训练 loss 显著下降。
-- [ ] 训练准确率达到接近 100%，或至少能够持续接近完全记忆。
-- [ ] 测试可通过脚本重复执行。
+- [x] 固定极小样本的训练 loss 显著下降。
+- [x] 训练准确率能够持续接近完全记忆。
+- [x] 测试可通过 pytest 重复执行。
 
 **tiny overfit 不通过时，不允许开始 100 epoch 正式训练。**
 
@@ -557,18 +599,13 @@ class MiniViT(nn.Module):
 
 ### 9.2 `engine.py` 的职责
 
-建议只提供三个核心函数：
+项目最终提供四类核心函数：
 
 ```python
-def train_one_epoch(model, loader, criterion, optimizer, device):
-    return metrics
-
-@torch.no_grad()
-def evaluate(model, loader, criterion, device):
-    return metrics
-
-def fit(model, loaders, criterion, optimizer, config, output_dir):
-    return history
+train_one_epoch(...)             # 训练并更新参数
+evaluate(...)                    # 验证，只累计聚合指标
+evaluate_with_predictions(...)   # 最终测试，同时保留逐样本预测
+fit(...)                         # 组织 epoch、日志和 checkpoint
 ```
 
 不要把 CIFAR-10 下载逻辑写入 `engine.py`，也不要在这里画图。
@@ -619,6 +656,7 @@ accuracy = correct / total_samples
     "model_state": model.state_dict(),
     "optimizer_state": optimizer.state_dict(),
     "best_val_accuracy": best_val_accuracy,
+    "history": history,
     "config": config,
 }
 ```
@@ -630,7 +668,7 @@ accuracy = correct / total_samples
 每轮向 `history.csv` 写入：
 
 ```text
-epoch,train_loss,train_accuracy,val_loss,val_accuracy
+epoch,train_loss,train_accuracy,val_loss,val_accuracy,epoch_time_seconds
 ```
 
 训练结束后再由可视化脚本读取 CSV 绘图。训练代码本身不负责展示图表。
@@ -641,13 +679,28 @@ epoch,train_loss,train_accuracy,val_loss,val_accuracy
 2. **2 epoch 冒烟测试**：确认训练、验证、日志和 checkpoint 全部产生。
 3. **正式 100 epoch**：只有前两步通过后才开始。
 
+本项目的冒烟训练必须显式使用独立输出目录，防止覆盖正式结果：
+
+```powershell
+python -m scripts.train --config configs/minivit.yaml --epochs 2 --max-batches 2 --output-dir outputs/smoke_minivit
+```
+
+正式训练与断点续训：
+
+```powershell
+python -m scripts.train --config configs/minivit.yaml
+python -m scripts.train --config configs/minivit.yaml --resume outputs/minivit_baseline/last.pt
+```
+
+`--epochs` 表示目标总 epoch，不是从 checkpoint 起额外增加的轮数。
+
 ### 9.8 验收关卡
 
-- [ ] 单 batch 训练成功。
-- [ ] 2 epoch 后生成 `last.pt`、`best.pt` 和 `history.csv`。
-- [ ] 中断后能从 `last.pt` 接着训练。
-- [ ] train loss 总体下降，准确率明显高于随机猜测。
-- [ ] 测试集没有参与模型选择。
+- [x] 单 batch 训练成功。
+- [x] 2 epoch 后生成 `last.pt`、`best.pt` 和 `history.csv`。
+- [x] 中断后能从 `last.pt` 接着训练。
+- [x] train loss 总体下降，准确率明显高于随机猜测。
+- [x] 测试集没有参与模型选择。
 
 ---
 
@@ -674,19 +727,17 @@ model.name = minivit -> 创建 MiniViT
 model.name = cnn     -> 创建 SimpleCNN
 ```
 
-### 10.3 CNN 建议结构
+### 10.3 CNN 实际结构
 
-使用 3–4 个卷积模块即可：
+项目使用 4 个卷积模块，通道数为 `96 → 192 → 384 → 512`：
 
 ```text
-Conv -> BatchNorm -> ReLU -> Pool
-Conv -> BatchNorm -> ReLU -> Pool
-Conv -> BatchNorm -> ReLU
+4 × (Conv -> BatchNorm -> ReLU -> MaxPool)
 AdaptiveAvgPool
-Linear -> 10 classes
+Flatten -> Dropout -> Linear(512, 10)
 ```
 
-不必为了完全匹配参数量反复调结构。至少报告两个模型的参数量，并在结论中说明差异即可。
+CNN 有 2,609,002 个参数，MiniViT 有 2,693,578 个参数；差异约 3.14%，足够作为接近参数量而非完全相同参数量的对照。
 
 ### 10.4 公平比较表
 
@@ -703,10 +754,10 @@ Linear -> 10 classes
 
 ### 10.5 验收关卡
 
-- [ ] CNN 输出 `[B, 10]`。
-- [ ] CNN 通过 tiny overfit。
-- [ ] CNN 使用相同的 `engine.py` 完成训练。
-- [ ] 结果表包含两个模型的参数量、最佳验证准确率和测试准确率。
+- [x] CNN 输出 `[B, 10]`。
+- [x] CNN 通过 tiny overfit。
+- [x] CNN 使用相同的 `engine.py` 完成训练。
+- [x] 结果表包含两个模型的参数量、最佳验证准确率和测试准确率。
 
 ---
 
@@ -755,10 +806,11 @@ Linear -> 10 classes
 
 ### 11.6 实验命名
 
-建议保持可读：
+项目实际命名：
 
 ```text
-baseline_minivit_p4_d6_aug_seed42
+minivit_baseline
+cnn_baseline
 ablation_patch_p2_d6_aug_seed42
 ablation_patch_p8_d6_aug_seed42
 ablation_depth_p4_d3_aug_seed42
@@ -768,16 +820,23 @@ ablation_aug_p4_d6_noaug_seed42
 
 ### 11.7 结果记录表
 
-| Run | Model | Patch | Depth | Aug | Params | Best Val Acc | Test Acc | Epoch Time |
-|---|---|---:|---:|---|---:|---:|---:|---:|
-| baseline | MiniViT | 4 | 6 | Basic | 待填写 | 待填写 | 待填写 | 待填写 |
+| Run | Patch | Depth | Aug | Params | Best Val Acc | Test Acc | Epoch Time |
+|---|---:|---:|---|---:|---:|---:|---:|
+| p4/d6 baseline | 4 | 6 | Basic | 2,693,578 | **81.84%** | **80.65%** | 25.64 s |
+| patch p2 | 2 | 6 | Basic | 2,723,530 | 80.02% | 78.94% | 97.72 s* |
+| patch p8 | 8 | 6 | Basic | 2,712,010 | 77.30% | 76.38% | 10.03 s |
+| depth d3 | 4 | 3 | Basic | 1,358,986 | 81.16% | 80.27% | 12.37 s |
+| depth d9 | 4 | 9 | Basic | 4,028,170 | 81.46% | 80.36% | 30.09 s |
+| no augmentation | 4 | 6 | None | 2,693,578 | 72.64% | 70.93% | 19.72 s |
+
+\* p2 的 epoch 59 因电脑睡眠记录了异常耗时，正常平均值排除了该点。实际排序为：准确率 `p4 > p2 > p8`，速度 `p8 > p4 > p2`；深度实验未观察到 d9 相比 d6 的收益；移除增强造成最大泛化退化。
 
 ### 11.8 验收关卡
 
-- [ ] 每组实验只改变一个变量。
-- [ ] 所有实验使用同一数据划分。
-- [ ] 每次运行均保存独立配置、日志和权重。
-- [ ] 能用自己的话解释三个实验结果，而不只是罗列数字。
+- [x] 每组实验只改变一个变量。
+- [x] 所有实验使用同一数据划分。
+- [x] 每次运行均保存独立配置、日志和权重。
+- [x] 已在阶段 7 笔记中记录实验前猜想、结果与反思。
 
 ---
 
@@ -796,7 +855,7 @@ ablation_aug_p4_d6_noaug_seed42
 - 每个样本的真实标签与预测标签。
 - 10 × 10 混淆矩阵所需数据。
 
-建议将结果保存到 `metrics.json`，预测保存为 CSV，供绘图脚本读取。
+项目将结果保存到各实验的 `evaluation/metrics.json`，逐样本预测保存到 `evaluation/predictions.csv`，供绘图脚本读取。`metrics.json` 同时记录 checkpoint epoch 与 SHA-256，确保结果可追溯。
 
 ### 12.3 四类必做可视化
 
@@ -839,12 +898,47 @@ Confidence: 0.xx
 
 ### 12.4 验收关卡
 
-- [ ] 测试评估明确加载 `best.pt`。
-- [ ] 最终表中有 MiniViT、CNN 和消融结果。
-- [ ] 训练曲线坐标和图例清楚。
-- [ ] 混淆矩阵轴含义清楚。
-- [ ] 错误案例有文字分析。
-- [ ] 至少展示若干正确与错误预测的 attention 图。
+- [x] 7 组测试评估均明确加载冻结的 `best.pt`。
+- [x] 最终表包含 MiniViT、CNN 和五个消融结果。
+- [x] 训练曲线坐标、图例和 best epoch 标记清楚。
+- [x] 混淆矩阵固定为纵轴真实类别、横轴预测类别。
+- [x] 错误案例包含真实类别、预测类别和置信度。
+- [x] Attention 图同时包含正确与错误预测，并注明解释边界。
+
+### 12.5 实际评估和可视化命令
+
+最终评估只接受名为 `best.pt` 的冻结 checkpoint：
+
+```powershell
+python -m scripts.evaluate --checkpoint outputs/minivit_baseline/best.pt
+python -m scripts.evaluate --checkpoint outputs/cnn_baseline/best.pt
+```
+
+局部冒烟评估必须使用独立目录：
+
+```powershell
+python -m scripts.evaluate --checkpoint outputs/minivit_baseline/best.pt --max-batches 2 --output-dir outputs/evaluation_smoke
+```
+
+在全部正式评估完成后生成图表：
+
+```powershell
+python -m scripts.visualize
+```
+
+最终测试结果：
+
+| 模型 / 实验 | Test Loss | Test Acc |
+|---|---:|---:|
+| SimpleCNN baseline | **0.4514** | **88.29%** |
+| MiniViT baseline | 0.7335 | 80.65% |
+| MiniViT depth 9 | 0.8347 | 80.36% |
+| MiniViT depth 3 | 0.7347 | 80.27% |
+| MiniViT patch 2 | 0.7653 | 78.94% |
+| MiniViT patch 8 | 0.8077 | 76.38% |
+| MiniViT no augmentation | 1.5201 | 70.93% |
+
+测试集延续了验证集上的主要结论，没有用于重新选择 epoch 或继续调参。阶段 8 完成时全量自动化测试为 `184 passed`。
 
 ---
 
@@ -881,14 +975,14 @@ README 是他人理解项目的入口，不要只写安装命令。
 
 ### 13.3 最终仓库检查
 
-- [ ] 新环境按 README 能安装依赖。
-- [ ] 所有路径使用相对路径，不包含个人机器的绝对路径。
-- [ ] 所有测试通过。
-- [ ] 2 epoch 冒烟训练命令可运行。
-- [ ] 评估命令可以从 `best.pt` 生成指标。
-- [ ] 可视化脚本可以从日志和预测文件生成图片。
-- [ ] Git 中没有数据集、大权重、缓存文件或个人信息。
-- [ ] README 中的数字与输出文件一致。
+- [x] README 提供固定依赖和虚拟环境安装步骤。
+- [x] 所有项目文档使用相对路径或可移植占位路径。
+- [x] 全量自动化测试为 `184 passed`。
+- [x] 2 epoch 隔离冒烟训练命令已经验收。
+- [x] 评估命令可从冻结的 `best.pt` 生成指标与逐样本预测。
+- [x] 可视化脚本可从日志和预测文件生成 7 张正式图片。
+- [x] Git 中没有数据集、大权重、虚拟环境或个人信息。
+- [x] README 中的数字与实验结果总账一致。
 
 ---
 
@@ -987,14 +1081,8 @@ README 是他人理解项目的入口，不要只写安装命令。
 
 ---
 
-## 18. 现在只做哪一步
+## 18. 当前状态与下一步
 
-不要立刻开始写 Attention。当前的唯一任务是完成“阶段 0”：
+阶段 0–9 的基础项目主线已经全部完成：代码、测试、正式实验、最终评估、图表、学习笔记和仓库 README 均已闭环。
 
-1. 确认本机 Python、PyTorch 与 GPU 情况。
-2. 创建项目目录骨架。
-3. 创建依赖文件和 `.gitignore`。
-4. 运行一次最简单的环境检查。
-5. 提交第一个 Git 版本。
-
-阶段 0 通过后，再单独进入阶段 1。之后每次只处理一个阶段，能显著降低第一次完成深度学习工程的认知负担。
+接下来没有必须继续执行的基础阶段。若继续研究，可从多随机种子、warmup + cosine scheduler、AMP、Mixup/CutMix、效率统计或新数据集迁移中选择一个方向，并建立新的实验阶段与独立验证协议。不要覆盖当前冻结结果，也不要使用测试集反复试错。

@@ -13,36 +13,49 @@ CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
 
 # 定义数据集的图像变换
-def build_transforms() -> tuple[transforms.Compose, transforms.Compose]:
-    """Build the training and evaluation transforms for CIFAR-10."""
-    # 训练集的图像变换
-    train_transform = transforms.Compose(
-        [
+def build_transforms(
+    augmentation: str = "basic",
+) -> tuple[transforms.Compose, transforms.Compose]:
+    """Build configured training transforms and deterministic evaluation transforms."""
+
+    augmentation_name = augmentation.strip().lower()
+
+    if augmentation_name == "basic":
+        # 基础增强只作用于训练集，为同一图片制造合理的位置与朝向变化。
+        train_operations = [
             # 随机裁剪：图片四周先补 4 个像素，再随机裁剪回 32×32
             # 相当于让物体发生轻微位置移动，降低模型对固定位置的依赖
             transforms.RandomCrop(32, padding=4),
-            
+
             # 随机水平翻转：默认概率 50%
             transforms.RandomHorizontalFlip(),
-            
-            # 转成 Tensor
-            #    PIL/NumPy：[H, W, C]，uint8，  0–255
-            # ➡ Tensor：   [C, H, W]，float32，0.0–1.0
+        ]
+    elif augmentation_name == "none":
+        # 无增强实验不执行随机操作，但仍保留必要的张量转换和归一化。
+        train_operations = []
+    else:
+        raise ValueError(
+            "augmentation must be one of: basic, none."
+        )
+
+    common_operations = [
+            # PIL/NumPy [H, W, C] uint8 0–255
+            # → Tensor [C, H, W] float32 0.0–1.0
             transforms.ToTensor(),
-            
+
             # 归一化
             # 归一化值 = (原值 - 通道均值) / 通道标准差
             transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-        ]
+    ]
+
+    train_transform = transforms.Compose(
+        [*train_operations, *common_operations]
     )
-    
+
     # 验证集和测试集的图像变换
     # 不使用随机增强的原因：验证准确率可能变化，导致不同 epoch 无法公平比较
     eval_transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-        ]
+        common_operations
     )
 
     return train_transform, eval_transform
@@ -81,10 +94,13 @@ def split_train_val_indices(
 def build_datasets(
     data_dir: str | Path,
     seed: int,
+    augmentation: str = "basic",
 ) -> tuple[Dataset, Dataset, Dataset, list[str]]:
     """Build CIFAR-10 training, validation, and test datasets."""
     # 获取两套变换
-    train_transform, eval_transform = build_transforms()
+    train_transform, eval_transform = build_transforms(
+        augmentation=augmentation,
+    )
 
     # 训练/验证 的 CIFAR-10 对象（前 datasets）
     # train_source 和 val_source 用同一批训练图片，但预处理不同
@@ -133,6 +149,7 @@ def build_dataloaders(
     batch_size: int,
     num_workers: int,
     seed: int,
+    augmentation: str = "basic",
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
     """Build the CIFAR-10 training, validation, and test DataLoaders.
 
@@ -141,6 +158,7 @@ def build_dataloaders(
         batch_size: Number of samples in each batch.
         num_workers: Number of worker processes used for data loading.
         seed: Random seed used for the train/validation split.
+        augmentation: Training augmentation mode: ``basic`` or ``none``.
 
     Returns:
         A tuple containing the training DataLoader, validation DataLoader,
@@ -157,6 +175,7 @@ def build_dataloaders(
     train_dataset, val_dataset, test_dataset, class_names = build_datasets(
         data_dir=data_dir,
         seed=seed,
+        augmentation=augmentation,
     )
 
     # 局部随机数生成器

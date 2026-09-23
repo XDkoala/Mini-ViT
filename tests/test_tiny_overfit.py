@@ -1,4 +1,4 @@
-"""Tiny-overfit diagnostics for the MiniViT training pipeline."""
+"""Tiny-overfit diagnostics for project image classifiers."""
 
 from pathlib import Path
 
@@ -6,6 +6,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10
+from src.models.cnn import SimpleCNN
 from src.models.minivit import MiniViT
 
 from src.data import (
@@ -292,4 +293,51 @@ def test_tiny_overfit_reaches_near_perfect_accuracy(tiny_dataset):
     assert accuracies[-1] >= 0.98
 
     # 除了分类正确，还要求模型对正确类别具有较高置信度。
+    assert losses[-1] < 0.1
+
+
+# 正式 CNN 架构也必须能记住同一固定训练子集，证明共享训练链能够学习。
+def test_cnn_tiny_overfit_reaches_near_perfect_accuracy(tiny_dataset):
+    """Verify that the default SimpleCNN can memorize the fixed tiny dataset."""
+
+    torch.manual_seed(TINY_OVERFIT_SEED)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(TINY_OVERFIT_SEED)
+
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu"
+    )
+
+    data_loader = DataLoader(
+        tiny_dataset,
+        batch_size=TINY_OVERFIT_SIZE,
+        shuffle=False,
+    )
+    images, labels = next(iter(data_loader))
+    images = images.to(device)
+    labels = labels.to(device)
+
+    # 关闭 Dropout，使诊断只检查模型容量和梯度链，不引入随机屏蔽。
+    model = SimpleCNN(dropout=0.0).to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=1e-3,
+        weight_decay=0.0,
+    )
+
+    losses, accuracies = train_for_steps(
+        model=model,
+        images=images,
+        labels=labels,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_steps=60,
+    )
+
+    assert torch.isfinite(torch.tensor(losses)).all()
+    assert torch.isfinite(torch.tensor(accuracies)).all()
+    assert losses[-1] < losses[0]
+    assert accuracies[-1] >= 0.98
     assert losses[-1] < 0.1

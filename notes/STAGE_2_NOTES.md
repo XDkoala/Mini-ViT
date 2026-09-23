@@ -28,7 +28,7 @@
 
 - `src/models/minivit.py`：实现四个模型零件。
 - `tests/test_model.py`：每完成一个零件就补充对应测试。
-- `STAGE_2_NOTES.md`：记录原理、机制、契约与验收结论。
+- `notes/STAGE_2_NOTES.md`：记录原理、机制、契约与验收结论。
 
 本阶段不做：
 

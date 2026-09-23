@@ -31,7 +31,7 @@ images
 
 - `src/models/minivit.py`：实现完整 `MiniViT`。
 - `tests/test_model.py`：补充完整模型的契约与梯度测试。
-- `STAGE_3_NOTES.md`：记录组装原理、shape、接口与验收结论。
+- `notes/STAGE_3_NOTES.md`：记录组装原理、shape、接口与验收结论。
 
 本阶段不做：
 

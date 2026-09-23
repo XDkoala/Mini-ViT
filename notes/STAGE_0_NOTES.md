@@ -16,7 +16,7 @@
 ### 1.1 首次创建
 
 ```powershell
-Set-Location -LiteralPath 'D:\Desktop\Mini ViT'
+Set-Location -LiteralPath '<项目目录>\Mini ViT'
 python --version
 python -m venv .venv
 ```
@@ -52,7 +52,7 @@ python -m pip --version
 两条命令的输出路径都应包含：
 
 ```text
-D:\Desktop\Mini ViT\.venv
+<项目目录>\Mini ViT\.venv
 ```
 
 安装包时优先写 `python -m pip`，确保 pip 属于当前 Python，避免误装进全局环境。
@@ -70,7 +70,7 @@ deactivate
 下次打开 PowerShell：
 
 ```powershell
-Set-Location -LiteralPath 'D:\Desktop\Mini ViT'
+Set-Location -LiteralPath '<项目目录>\Mini ViT'
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -165,8 +165,19 @@ New-Item -ItemType File -Path 'tests\test_data.py', 'tests\test_model.py', 'test
 Mini ViT/                              # 项目根目录
 ├── README.md                          # 项目介绍、安装方法、运行命令与实验结果
 ├── PROJECT_PLAN.md                    # 项目目标、技术路线和整体规划
-├── BASIC_PROJECT_WORKFLOW.md          # 从环境搭建到项目完成的分阶段流程
-├── STAGE_0_NOTES.md                   # 阶段 0 的命令、原理、进度和验收记录
+├── notes/                             # 各阶段的学习笔记与验收记录
+│   ├── BASIC_PROJECT_WORKFLOW.md       # 从环境搭建到项目完成的实际总流程
+│   ├── EXPERIMENT_RESULTS.md           # 正式实验事实、哈希与结果总表
+│   ├── STAGE_0_NOTES.md               # 阶段 0：环境与项目骨架
+│   ├── STAGE_1_NOTES.md               # 阶段 1：数据管线
+│   ├── STAGE_2_NOTES.md               # 阶段 2：MiniViT 模型零件
+│   ├── STAGE_3_NOTES.md               # 阶段 3：完整 MiniViT
+│   ├── STAGE_4_NOTES.md               # 阶段 4：极小数据过拟合
+│   ├── STAGE_5_NOTES.md               # 阶段 5：正式训练管线
+│   ├── STAGE_6_NOTES.md               # 阶段 6：CNN 对照基线
+│   ├── STAGE_7_NOTES.md               # 阶段 7：三组消融实验
+│   ├── STAGE_8_NOTES.md               # 阶段 8：最终评估与可视化
+│   └── STAGE_9_NOTES.md               # 阶段 9：README 与仓库收尾
 ├── requirements.txt                   # 项目所需的 Python 直接依赖
 ├── .gitignore                         # 声明不应提交到 Git 的文件和目录
 ├── configs/                           # 模型与训练超参数配置

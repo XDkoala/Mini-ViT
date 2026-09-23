@@ -10,7 +10,12 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 import src.engine as engine_module
-from src.engine import evaluate, fit, train_one_epoch
+from src.engine import (
+    evaluate,
+    evaluate_with_predictions,
+    fit,
+    train_one_epoch,
+)
 from src.metrics import ClassificationMetrics
 from src.utils import load_checkpoint
 
@@ -28,6 +33,25 @@ class EvaluationProbe(nn.Module):
         self.training_states.append(self.training)
         self.gradient_states.append(torch.is_grad_enabled())
         return self.classifier(inputs)
+
+
+class PredictionProbe(nn.Module):
+    """Return deterministic logits while recording mode and gradient state."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.projection = nn.Linear(3, 3, bias=False)
+
+        with torch.no_grad():
+            self.projection.weight.copy_(torch.eye(3))
+
+        self.training_states: list[bool] = []
+        self.gradient_states: list[bool] = []
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        self.training_states.append(self.training)
+        self.gradient_states.append(torch.is_grad_enabled())
+        return self.projection(inputs)
 
 
 class CountingBatchLoader:
@@ -731,3 +755,118 @@ def test_fit_rejects_inconsistent_resume_state(
             start_epoch=start_epoch,
             initial_history=initial_history,
         )
+
+
+# 测试评估应同时返回按样本加权的整体指标和顺序稳定的逐样本预测。
+def test_evaluate_with_predictions_returns_metrics_and_records():
+    """Collect aggregate metrics, confidence, labels, and correctness in order."""
+
+    device = torch.device("cpu")
+    model = PredictionProbe().to(device)
+    model.train()
+
+    logits_as_inputs = torch.tensor([
+        [3.0, 1.0, 0.0],
+        [0.0, 2.0, 1.0],
+        [0.0, 1.0, 2.0],
+    ])
+    labels = torch.tensor([0, 2, 1])
+    loader = DataLoader(
+        TensorDataset(logits_as_inputs, labels),
+        batch_size=2,
+        shuffle=False,
+    )
+    criterion = nn.CrossEntropyLoss()
+
+    weight_before = model.projection.weight.detach().clone()
+    expected_loss = criterion(logits_as_inputs, labels).item()
+    expected_confidences = (
+        logits_as_inputs.softmax(dim=1).max(dim=1).values
+    )
+
+    metrics, records = evaluate_with_predictions(
+        model=model,
+        loader=loader,
+        criterion=criterion,
+        device=device,
+    )
+
+    assert metrics == pytest.approx({
+        "loss": expected_loss,
+        "accuracy": 1 / 3,
+        "num_samples": 3,
+    })
+    assert [record["sample_index"] for record in records] == [0, 1, 2]
+    assert [record["true_label"] for record in records] == [0, 2, 1]
+    assert [record["predicted_label"] for record in records] == [0, 1, 2]
+    assert [record["correct"] for record in records] == [True, False, False]
+    assert [record["confidence"] for record in records] == pytest.approx(
+        expected_confidences.tolist()
+    )
+
+    # 两个 batch 都必须在 eval 模式和 no_grad 环境执行。
+    assert model.training_states == [False, False]
+    assert model.gradient_states == [False, False]
+    assert not model.training
+
+    # 纯评估不能产生梯度或修改任何模型权重。
+    assert model.projection.weight.grad is None
+    assert torch.equal(weight_before, model.projection.weight)
+
+
+# batch 上限应在当前 batch 完成后停止，且不从 loader 多取一批数据。
+def test_evaluate_with_predictions_respects_batch_limit_without_prefetch():
+    """Stop after the requested batch count without consuming another batch."""
+
+    model = PredictionProbe()
+    batches = [
+        (
+            torch.tensor([[2.0, 1.0, 0.0]]),
+            torch.tensor([0]),
+        ),
+        (
+            torch.tensor([[0.0, 2.0, 1.0]]),
+            torch.tensor([1]),
+        ),
+    ]
+    loader = CountingBatchLoader(batches)
+
+    metrics, records = evaluate_with_predictions(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        device=torch.device("cpu"),
+        max_batches=1,
+    )
+
+    assert loader.yield_count == 1
+    assert metrics["num_samples"] == 1
+    assert len(records) == 1
+    assert records[0]["sample_index"] == 0
+
+
+# 非正 batch 上限是调用错误，必须在读取数据前立即拒绝。
+@pytest.mark.parametrize("max_batches", [0, -1])
+def test_evaluate_with_predictions_rejects_invalid_batch_limit(max_batches):
+    """Reject non-positive limits before requesting a batch from the loader."""
+
+    loader = CountingBatchLoader([
+        (
+            torch.tensor([[2.0, 1.0, 0.0]]),
+            torch.tensor([0]),
+        )
+    ])
+
+    with pytest.raises(
+        ValueError,
+        match="max_batches must be greater than zero",
+    ):
+        evaluate_with_predictions(
+            model=PredictionProbe(),
+            loader=loader,
+            criterion=nn.CrossEntropyLoss(),
+            device=torch.device("cpu"),
+            max_batches=max_batches,
+        )
+
+    assert loader.yield_count == 0

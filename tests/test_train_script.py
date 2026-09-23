@@ -13,6 +13,7 @@ from scripts.train import (
     parse_args,
 )
 from src.models.minivit import MiniViT
+from src.models.cnn import SimpleCNN
 
 
 def write_test_config(tmp_path: Path) -> Path:
@@ -30,6 +31,7 @@ data:
   data_dir: data
   batch_size: 8
   num_workers: 0
+  augmentation: basic
 model:
   image_size: 32
   in_channels: 3
@@ -198,6 +200,44 @@ def test_build_model_and_optimizer_from_configuration():
     assert optimizer_parameter_ids == model_parameter_ids
 
 
+# 同一个模型工厂应根据 model.name 创建 CNN，而不修改传入的配置字典。
+def test_build_model_selects_cnn_without_mutating_configuration():
+    """Build SimpleCNN by name while preserving the source configuration."""
+
+    device = torch.device("cpu")
+    model_config: dict[str, object] = {
+        "name": "cnn",
+        "in_channels": 3,
+        "num_classes": 10,
+        "channels": [8, 16],
+        "dropout": 0.0,
+    }
+    original_config = dict(model_config)
+
+    model = build_model(
+        model_config=model_config,
+        device=device,
+    )
+
+    assert isinstance(model, SimpleCNN)
+    assert model(torch.randn(2, 3, 16, 16)).shape == (2, 10)
+    assert model_config == original_config
+
+
+# 未实现的模型名必须在训练开始前明确失败，避免静默创建错误架构。
+def test_build_model_rejects_unknown_model_name():
+    """Reject model names not supported by the shared training entry point."""
+
+    with pytest.raises(
+        ValueError,
+        match="minivit, cnn",
+    ):
+        build_model(
+            model_config={"name": "resnet"},
+            device=torch.device("cpu"),
+        )
+
+
 # 第一版训练入口只支持 AdamW，未知名称必须明确失败。
 def test_build_optimizer_rejects_unknown_name():
     """Reject optimizers not implemented by the training entry point."""
@@ -272,6 +312,7 @@ def test_main_wires_fresh_training_without_real_data(
         "batch_size": 8,
         "num_workers": 0,
         "seed": 42,
+        "augmentation": "basic",
     }
 
     fit_call = calls["fit"]

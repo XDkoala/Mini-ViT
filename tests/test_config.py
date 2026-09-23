@@ -30,6 +30,8 @@ def test_load_config_reads_minivit_baseline():
     assert experiment["output_dir"] == "outputs/minivit_baseline"
     assert data["batch_size"] == 128
     assert data["num_workers"] == 0
+    assert data["augmentation"] == "basic"
+    assert model["name"] == "minivit"
     assert model["embed_dim"] == 192
     assert model["depth"] == 6
     assert model["num_heads"] == 6
@@ -37,6 +39,101 @@ def test_load_config_reads_minivit_baseline():
     assert training["optimizer"] == "adamw"
     assert training["learning_rate"] == pytest.approx(0.0003)
     assert isinstance(training["learning_rate"], float)
+
+
+# CNN 正式配置应复用相同实验协议，并仅替换模型结构和输出目录。
+def test_load_config_reads_cnn_baseline():
+    """Load the CNN baseline configuration with its model-selection field."""
+
+    config = load_config(
+        PROJECT_ROOT / "configs" / "cnn.yaml"
+    )
+
+    assert config["experiment"]["name"] == "cnn_baseline"
+    assert config["experiment"]["output_dir"] == "outputs/cnn_baseline"
+    assert config["seed"] == 42
+    assert config["data"]["batch_size"] == 128
+    assert config["data"]["augmentation"] == "basic"
+    assert config["model"] == {
+        "name": "cnn",
+        "in_channels": 3,
+        "num_classes": 10,
+        "channels": [96, 192, 384, 512],
+        "dropout": 0.1,
+    }
+    assert config["training"]["epochs"] == 100
+    assert config["training"]["optimizer"] == "adamw"
+
+
+# 五份消融配置必须与 MiniViT baseline 仅存在目标变量及实验身份差异。
+@pytest.mark.parametrize(
+    ("filename", "experiment_name", "model_override", "data_override"),
+    [
+        (
+            "patch_p2.yaml",
+            "ablation_patch_p2_d6_aug_seed42",
+            {"patch_size": 2},
+            {},
+        ),
+        (
+            "patch_p8.yaml",
+            "ablation_patch_p8_d6_aug_seed42",
+            {"patch_size": 8},
+            {},
+        ),
+        (
+            "depth_d3.yaml",
+            "ablation_depth_p4_d3_aug_seed42",
+            {"depth": 3},
+            {},
+        ),
+        (
+            "depth_d9.yaml",
+            "ablation_depth_p4_d9_aug_seed42",
+            {"depth": 9},
+            {},
+        ),
+        (
+            "no_augmentation.yaml",
+            "ablation_aug_p4_d6_noaug_seed42",
+            {},
+            {"augmentation": "none"},
+        ),
+    ],
+)
+def test_ablation_configs_change_only_the_intended_variable(
+    filename,
+    experiment_name,
+    model_override,
+    data_override,
+):
+    """Keep every controlled field equal to the baseline configuration."""
+
+    baseline = load_config(
+        PROJECT_ROOT / "configs" / "minivit.yaml"
+    )
+    ablation = load_config(
+        PROJECT_ROOT / "configs" / "ablations" / filename
+    )
+
+    expected_model = {
+        **baseline["model"],
+        **model_override,
+    }
+    expected_data = {
+        **baseline["data"],
+        **data_override,
+    }
+
+    assert ablation["experiment"] == {
+        "name": experiment_name,
+        "output_dir": f"outputs/{experiment_name}",
+    }
+    assert ablation["seed"] == baseline["seed"]
+    assert ablation["device"] == baseline["device"]
+    assert ablation["data"] == expected_data
+    assert ablation["model"] == expected_model
+    assert ablation["training"] == baseline["training"]
 
 
 @pytest.mark.parametrize(

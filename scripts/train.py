@@ -1,4 +1,4 @@
-"""Command-line entry point for MiniViT training."""
+"""Command-line entry point for configured image-classifier training."""
 
 import argparse
 from pathlib import Path
@@ -8,6 +8,7 @@ from torch import nn
 from torch.optim import Optimizer
 
 from src.models.minivit import MiniViT
+from src.models.cnn import SimpleCNN
 from src.config import load_config, save_config
 from src.data import build_dataloaders
 from src.engine import fit
@@ -87,12 +88,24 @@ def parse_args(
 def build_model(
     model_config: dict[str, object],
     device: torch.device,
-) -> MiniViT:
-    """Build MiniViT from configuration and move it to a device."""
+) -> nn.Module:
+    """Build the configured model architecture and move it to a device."""
 
-    model = MiniViT(
-        **model_config,
-    )
+    # 使用副本移除工厂专用的 name，避免修改原始配置快照，
+    # 也避免把 MiniViT/SimpleCNN 不认识的参数传给构造函数。
+    constructor_config = dict(model_config)
+    model_name = str(
+        constructor_config.pop("name", "minivit")
+    ).strip().lower()
+
+    if model_name == "minivit":
+        model = MiniViT(**constructor_config)
+    elif model_name == "cnn":
+        model = SimpleCNN(**constructor_config)
+    else:
+        raise ValueError(
+            "model.name must be one of: minivit, cnn."
+        )
 
     return model.to(device)
 
@@ -211,6 +224,9 @@ def main(
         batch_size=int(data_config["batch_size"]),
         num_workers=int(data_config["num_workers"]),
         seed=seed,
+        augmentation=str(
+            data_config.get("augmentation", "basic")
+        ),
     )
 
     # 创建模型、标准、优化器

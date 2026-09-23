@@ -8,7 +8,13 @@ import pytest
 import torch
 from torch.utils.data import RandomSampler, SequentialSampler
 
-from src.data import build_dataloaders, split_train_val_indices
+from torchvision import transforms
+
+from src.data import (
+    build_dataloaders,
+    build_transforms,
+    split_train_val_indices,
+)
 
 # __file__ 当前文件；.resolve() 转换为绝对路径；.parents[1] 向上跳两级
 # 最终得到项目根目录
@@ -179,3 +185,41 @@ def test_dataloader_rejects_invalid_arguments(batch_size, num_workers):
             num_workers=num_workers,
             seed=42,
         )
+
+
+# basic 与 none 必须只改变训练增强；验证变换始终保持确定性。
+def test_build_transforms_supports_basic_and_none_augmentation():
+    """Switch training augmentation without changing evaluation preprocessing."""
+
+    basic_train, basic_eval = build_transforms("basic")
+    plain_train, plain_eval = build_transforms("none")
+
+    assert [type(operation) for operation in basic_train.transforms] == [
+        transforms.RandomCrop,
+        transforms.RandomHorizontalFlip,
+        transforms.ToTensor,
+        transforms.Normalize,
+    ]
+    assert [type(operation) for operation in plain_train.transforms] == [
+        transforms.ToTensor,
+        transforms.Normalize,
+    ]
+    assert [type(operation) for operation in basic_eval.transforms] == [
+        transforms.ToTensor,
+        transforms.Normalize,
+    ]
+    assert [type(operation) for operation in plain_eval.transforms] == [
+        transforms.ToTensor,
+        transforms.Normalize,
+    ]
+
+
+# 拼写错误不能静默退回默认增强，否则会污染消融实验结论。
+def test_build_transforms_rejects_unknown_augmentation():
+    """Reject unknown augmentation names instead of silently falling back."""
+
+    with pytest.raises(
+        ValueError,
+        match="basic, none",
+    ):
+        build_transforms("strong")

@@ -108,6 +108,92 @@ def evaluate(
     return metrics.compute()
 
 
+@torch.no_grad()
+def evaluate_with_predictions(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    max_batches: int | None = None,
+) -> tuple[
+    dict[str, int | float],
+    list[dict[str, int | float | bool]],
+]:
+    """Evaluate a classifier and retain one prediction record per sample."""
+
+    model.eval()
+    metrics = ClassificationMetrics()
+    prediction_records: list[
+        dict[str, int | float | bool]
+    ] = []
+
+    if max_batches is not None and max_batches <= 0:
+        raise ValueError(
+            "max_batches must be greater than zero."
+        )
+
+    sample_index = 0
+
+    for batch_index, (images, labels) in enumerate(loader):
+        images = images.to(device)
+        labels = labels.to(device)
+
+        # 模型仍输出原始 logits；CrossEntropyLoss 不接收 Softmax 概率。
+        logits = model(images)
+        loss = criterion(logits, labels)
+
+        metrics.update(
+            loss=loss,
+            logits=logits,
+            labels=labels,
+        )
+
+        # Softmax 仅用于解释预测置信度，不参与 loss 或参数更新。
+        probabilities = logits.softmax(dim=1)
+        confidences, predicted_labels = probabilities.max(dim=1)
+
+        # 每个张量只做一次 GPU→CPU 传输，避免逐样本同步设备。
+        true_labels_cpu = labels.detach().cpu().tolist()
+        predicted_labels_cpu = (
+            predicted_labels.detach().cpu().tolist()
+        )
+        confidences_cpu = confidences.detach().cpu().tolist()
+
+        for true_label, predicted_label, confidence in zip(
+            true_labels_cpu,
+            predicted_labels_cpu,
+            confidences_cpu,
+            strict=True,
+        ):
+            prediction_records.append({
+                "sample_index": sample_index,
+                "true_label": int(true_label),
+                "predicted_label": int(predicted_label),
+                "confidence": float(confidence),
+                "correct": bool(predicted_label == true_label),
+            })
+            sample_index += 1
+
+        # 与训练/验证循环保持相同语义：处理完当前 batch 后再停止，
+        # 不为判断上限而预先读取额外 batch。
+        if (
+            max_batches is not None
+            and batch_index + 1 >= max_batches
+        ):
+            break
+
+    aggregate_metrics = metrics.compute()
+
+    return (
+        {
+            "loss": aggregate_metrics["loss"],
+            "accuracy": aggregate_metrics["accuracy"],
+            "num_samples": len(prediction_records),
+        },
+        prediction_records,
+    )
+
+
 def fit(
     model: nn.Module,
     train_loader: DataLoader,

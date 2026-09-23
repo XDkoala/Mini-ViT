@@ -1,10 +1,12 @@
 # 阶段 5：正式训练闭环
 
-本阶段把已经验证能够学习的 MiniViT 接入可复用的训练、验证、日志与 checkpoint 系统，使后续 MiniViT 和 CNN 能共享同一套实验流程。
+本阶段把已经验证能够学习的 `MiniViT` 接入可复用的训练、验证、日志与 checkpoint 系统，使后续 MiniViT 和 CNN 能共享同一套实验流程。
 
 开始日期：2026-09-19  
-当前状态：进行中  
-当前位置：工程闭环验收通过，准备正式 MiniViT 基线训练
+完成日期：2026-09-22
+
+当前状态：已完成
+当前位置：MiniViT 100 epochs 正式基线已完成并归档
 
 ## 阶段概览
 
@@ -35,8 +37,8 @@ DataLoader
 - [x] 恢复模型、优化器和训练进度
 - [x] 完成单 batch 冒烟测试
 - [x] 完成 2 epoch 冒烟测试
-- [ ] 完成正式 MiniViT 基线训练（100 epochs）
-- [ ] 阶段 5 总验收
+- [x] 完成正式 MiniViT 基线训练（100 epochs）
+- [x] 阶段 5 总验收
 
 正式长时间训练不直接开始。必须依次通过单 batch、2 epoch、断点续训三个关卡。
 
@@ -277,3 +279,41 @@ AdamW step 连续性：4 → 6
 正式入口调用 `fit(verbose=True)`。每轮结束后输出 epoch 进度、训练/验证 loss、训练/验证 accuracy、耗时及是否刷新最佳验证准确率；`flush=True` 保证长时间训练时日志立即显示。
 
 耗时使用单调高精度的 `time.perf_counter()` 测量，定义为本轮训练与验证的计算时间，不包含保存 CSV 和 checkpoint 的磁盘时间。该值同时写入 `history.csv` 的 `epoch_time_seconds` 列，便于训练后比较速度。
+
+## 16. MiniViT 正式基线结果
+
+正式实验使用 `configs/minivit.yaml`，随机种子 42，训练 100 epochs。测试集没有参与训练、模型选择或本阶段结果统计。
+
+```text
+最佳验证准确率：81.84%（epoch 80）
+最佳轮训练准确率：94.08%
+最佳轮验证 loss：0.7255
+最低验证 loss：0.5879（epoch 40，val accuracy 80.30%）
+最终训练准确率：95.20%
+最终验证准确率：81.36%
+最终验证 loss：0.7793
+总计算耗时：2,563.73 s（约 42 min 44 s）
+平均每轮耗时：25.64 s
+```
+
+训练前 40 轮验证性能持续提升；之后训练准确率继续上升，而验证准确率约停留在 81%，验证 loss 从最低点逐渐升高，表明模型后期出现过拟合并对部分错误预测变得更自信。该结果作为未经 scheduler、Mixup、CutMix 或 Label Smoothing 改进的原始 MiniViT 基线保留，不覆盖重训。
+
+归档目录：`outputs/minivit_baseline/`
+
+```text
+best.pt     epoch 80，后续最终测试应加载此文件
+last.pt     epoch 100，用于保留最终训练状态
+history.csv 完整 100 epochs 指标与耗时
+config.yaml 本次实验的有效配置快照
+```
+
+SHA-256：
+
+```text
+best.pt     250E2CC425C7AA080DA37BE036C734D31548ACC6D563D7DAF4B6FF72AA6726A4
+last.pt     DB264FF20AFD289C7D34548F1D293EB0299B019A0838EB016342C8C444D4021C
+history.csv 6B39CEF579FD870C5DEFA4B7DBA20C867CD7B7A1675E7EEB36A318C1A0B7757D
+config.yaml EA2CF20ED784D6DB7224B99A6491F2738B46278EE41F46500577E9036879C0F7
+```
+
+阶段 5 验收结论：训练闭环、逐轮日志、最佳/最终 checkpoint、恢复机制与正式 100 epochs 实验全部完成。测试准确率留到阶段 8，统一加载 `best.pt` 后评估一次。
