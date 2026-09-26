@@ -466,13 +466,21 @@ def test_main_wires_fresh_training_without_real_data(
     assert fit_call["max_val_batches"] is None
     assert fit_call["verbose"] is True
     assert fit_call["gradient_clip_norm"] is None
+    assert fit_call["batch_mixer"] is None
+    assert fit_call["train_criterion"].label_smoothing == pytest.approx(0.0)
+    assert fit_call["val_criterion"].label_smoothing == pytest.approx(0.0)
     assert fit_call["output_dir"] == (
         train_script.PROJECT_ROOT / "outputs" / "isolated_test"
     )
     assert fit_call["config"]["training"]["epochs"] == 2
+    assert fit_call["config"]["training"]["label_smoothing"] == pytest.approx(
+        0.0
+    )
+    assert fit_call["config"]["training"]["batch_mixing"] == {"name": "none"}
     assert fit_call["config"]["format_version"] == 2
     assert fit_call["config"]["runtime"] == {
         "is_smoke_test": False,
+        "run_type": "formal",
         "max_train_batches": None,
         "max_val_batches": None,
         "amp": {
@@ -510,6 +518,90 @@ def test_main_wires_fresh_training_without_real_data(
         "completed",
     ]
     assert calls["statuses"][-1]["completed_epochs"] == 2
+
+
+# YAML 中的 label_smoothing 只允许改变训练 criterion，并写入有效配置。
+def test_main_applies_label_smoothing_to_training_only(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Wire a normalized smoothing factor to training but not validation."""
+
+    config_path = write_test_config(tmp_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "  weight_decay: 0.0\n",
+            "  weight_decay: 0.0\n  label_smoothing: 0.1\n",
+        ),
+        encoding="utf-8",
+    )
+    calls: dict[str, object] = {}
+    install_runtime_stubs(monkeypatch, calls)
+
+    def fake_fit(**kwargs):
+        calls["fit"] = kwargs
+        return [{
+            "epoch": 5,
+            "train_loss": 1.0,
+            "train_accuracy": 0.5,
+            "val_loss": 1.1,
+            "val_accuracy": 0.4,
+        }]
+
+    monkeypatch.setattr(train_script, "fit", fake_fit)
+
+    train_script.main(["--config", str(config_path)])
+
+    fit_call = calls["fit"]
+    assert fit_call["train_criterion"].label_smoothing == pytest.approx(0.1)
+    assert fit_call["val_criterion"].label_smoothing == pytest.approx(0.0)
+    assert fit_call["config"]["training"]["label_smoothing"] == pytest.approx(
+        0.1
+    )
+
+
+# Mixup YAML 必须构建训练专用 mixer，并把规范化参数写入配置快照。
+def test_main_builds_mixup_batch_mixer_from_yaml(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Build and forward a reproducible Mixup strategy from configuration."""
+
+    config_path = write_test_config(tmp_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "  weight_decay: 0.0\n",
+            "  weight_decay: 0.0\n"
+            "  batch_mixing:\n"
+            "    name: mixup\n"
+            "    alpha: 0.2\n",
+        ),
+        encoding="utf-8",
+    )
+    calls: dict[str, object] = {}
+    install_runtime_stubs(monkeypatch, calls)
+
+    def fake_fit(**kwargs):
+        calls["fit"] = kwargs
+        return [{
+            "epoch": 5,
+            "train_loss": 1.0,
+            "train_accuracy": 0.5,
+            "val_loss": 1.1,
+            "val_accuracy": 0.4,
+        }]
+
+    monkeypatch.setattr(train_script, "fit", fake_fit)
+
+    train_script.main(["--config", str(config_path)])
+
+    fit_call = calls["fit"]
+    assert fit_call["batch_mixer"].num_classes == 10
+    assert fit_call["batch_mixer"].alpha == pytest.approx(0.2)
+    assert fit_call["config"]["training"]["batch_mixing"] == {
+        "name": "mixup",
+        "alpha": pytest.approx(0.2),
+    }
 
 
 # 调度器工厂创建出的对象，必须原样传入 fit，不能只创建却未参与训练。
@@ -664,6 +756,7 @@ def test_main_records_and_forwards_smoke_settings(
     )
     assert fit_call["config"]["runtime"] == {
         "is_smoke_test": True,
+        "run_type": "smoke",
         "max_train_batches": 2,
         "max_val_batches": 2,
         "amp": {
@@ -690,6 +783,7 @@ def test_main_records_and_forwards_smoke_settings(
     assert calls["order"] == ["save_config", "fit"]
     assert calls["statuses"][-1]["status"] == "completed"
     assert calls["statuses"][-1]["is_smoke_test"] is True
+    assert calls["statuses"][-1]["run_type"] == "smoke"
 
 
 # resume 元数据必须原样传给 fit，使目标总轮数和历史记录连续。

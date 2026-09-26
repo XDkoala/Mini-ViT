@@ -110,6 +110,11 @@ def _ineligibility_reason(status: Mapping[str, object]) -> str | None:
         return f"status is {status.get('status')!r}, not 'completed'"
     if status.get("is_smoke_test") is not False:
         return "run is a smoke test or has an invalid smoke flag"
+    run_type = status.get("run_type", "formal")
+    if run_type == "screening":
+        return "run_type is screening, not formal"
+    if run_type != "formal":
+        return f"run_type is invalid: {run_type!r}"
     if not isinstance(status.get("git_commit"), str) or not status["git_commit"]:
         return "git_commit is missing"
     if status.get("git_is_dirty") is not False:

@@ -49,6 +49,12 @@ RUN_STATUSES = {
     "failed",
 }
 
+RUN_TYPES = {
+    "formal",
+    "screening",
+    "smoke",
+}
+
 
 def _read_git_commit(project_root: str | Path) -> str | None:
     """Return the checked-out Git commit, or None outside a readable repo."""
@@ -139,6 +145,7 @@ def write_run_status(
     git_commit: str | None,
     git_is_dirty: bool | None,
     target_epochs: int,
+    run_type: str = "formal",
     completed_epochs: int | None = None,
     error_type: str | None = None,
     error_message: str | None = None,
@@ -148,6 +155,10 @@ def write_run_status(
     if status not in RUN_STATUSES:
         allowed = ", ".join(sorted(RUN_STATUSES))
         raise ValueError(f"status must be one of: {allowed}.")
+
+    if run_type not in RUN_TYPES:
+        allowed = ", ".join(sorted(RUN_TYPES))
+        raise ValueError(f"run_type must be one of: {allowed}.")
 
     if target_epochs <= 0:
         raise ValueError("target_epochs must be greater than zero.")
@@ -168,6 +179,7 @@ def write_run_status(
     aggregation_eligible = (
         status == "completed"
         and not is_smoke_test
+        and run_type == "formal"
         and git_commit is not None
         and git_is_dirty is False
     )
@@ -181,6 +193,7 @@ def write_run_status(
         "target_epochs": target_epochs,
         "completed_epochs": completed_epochs,
         "is_smoke_test": is_smoke_test,
+        "run_type": run_type,
         "git_commit": git_commit,
         "git_is_dirty": git_is_dirty,
         "aggregation_eligible": aggregation_eligible,

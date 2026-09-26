@@ -20,6 +20,12 @@ from src.config import (
 from src.data import build_dataloaders
 from src.engine import fit
 from src.gradients import validate_gradient_clip_norm
+from src.regularization import (
+    build_batch_mixer,
+    build_classification_criteria,
+    normalize_batch_mixing_config,
+    validate_label_smoothing,
+)
 from src.schedulers import WarmupCosineScheduler
 from src.utils import (
     collect_run_metadata,
@@ -305,11 +311,21 @@ def main(
     )
 
     is_smoke_test = args.max_batches is not None
+    configured_run_type = str(
+        experiment_config.get("run_type", "formal")
+    ).strip().lower()
+    if configured_run_type not in {"formal", "screening"}:
+        raise ValueError(
+            "experiment.run_type must be 'formal' or 'screening'."
+        )
+    run_type = "smoke" if is_smoke_test else configured_run_type
+    experiment_config["run_type"] = configured_run_type
 
     # 输入 YAML 可以是旧格式；本次新生成的有效配置属于当前产物格式。
     config["format_version"] = CURRENT_FORMAT_VERSION
     config["runtime"] = {
         "is_smoke_test": is_smoke_test,
+        "run_type": run_type,
         "max_train_batches": args.max_batches,
         "max_val_batches": args.max_batches,
         "amp": amp_runtime.to_metadata(),
@@ -328,10 +344,25 @@ def main(
     gradient_clip_norm = validate_gradient_clip_norm(
         training_config.get("gradient_clip_norm")
     )
+    label_smoothing = validate_label_smoothing(
+        training_config.get("label_smoothing", 0.0)
+    )
+    batch_mixing_config = normalize_batch_mixing_config(
+        training_config.get("batch_mixing")
+    )
+    if label_smoothing > 0.0 and batch_mixing_config["name"] != "none":
+        raise ValueError(
+            "Stage 12 single-variable experiments cannot combine "
+            "label_smoothing with batch_mixing."
+        )
+    # 把默认值也写进有效配置快照，保证 checkpoint 可准确复现实验目标。
+    training_config["label_smoothing"] = label_smoothing
+    training_config["batch_mixing"] = batch_mixing_config
     status_arguments = {
         "path": status_path,
         "experiment_id": str(experiment_config["name"]),
         "is_smoke_test": is_smoke_test,
+        "run_type": run_type,
         "git_commit": run_metadata.get("git_commit"),
         "git_is_dirty": run_metadata.get("git_is_dirty"),
         "target_epochs": target_epochs,
@@ -363,7 +394,13 @@ def main(
             device=device,
         )
 
-        criterion = nn.CrossEntropyLoss()
+        train_criterion, val_criterion = build_classification_criteria(
+            label_smoothing
+        )
+        batch_mixer = build_batch_mixer(
+            batch_mixing_config,
+            num_classes=int(model_config["num_classes"]),
+        )
 
         optimizer = build_optimizer(
             model=model,
@@ -412,7 +449,8 @@ def main(
             model=model,
             train_loader=train_loader,
             val_loader=val_loader,
-            criterion=criterion,
+            train_criterion=train_criterion,
+            val_criterion=val_criterion,
             optimizer=optimizer,
             device=device,
             epochs=target_epochs,
@@ -427,6 +465,7 @@ def main(
             scheduler=scheduler,
             gradient_clip_norm=gradient_clip_norm,
             amp_runtime=amp_runtime,
+            batch_mixer=batch_mixer,
         )
     except BaseException as error:
         try:

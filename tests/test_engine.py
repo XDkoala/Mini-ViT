@@ -19,6 +19,7 @@ from src.engine import (
     train_one_epoch,
 )
 from src.metrics import ClassificationMetrics
+from src.regularization import BatchMixResult
 from src.schedulers import WarmupCosineScheduler
 from src.utils import load_checkpoint
 
@@ -98,6 +99,26 @@ class AmpStepProbe:
         if update_succeeded:
             optimizer.step()
         return update_succeeded
+
+
+class LossProbe(nn.Module):
+    """Return a differentiable constant while counting criterion calls."""
+
+    def __init__(self, value: float) -> None:
+        super().__init__()
+        self.value = value
+        self.call_count = 0
+
+    def forward(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        self.call_count += 1
+
+        # logits.sum() * 0 保留计算图，使训练路径可以正常 backward；
+        # 常数值则让测试能明确判断 fit 使用了哪一个 criterion。
+        return logits.sum() * 0.0 + self.value
 
 
 # CUDA 计时必须在起止点同步，并将 allocated/reserved 峰值转换为 MiB。
@@ -189,6 +210,28 @@ def test_classification_metrics_weights_batches_by_sample_count():
 
     # 正确数：(1 + 1) / 3 = 2/3
     assert result["accuracy"] == pytest.approx(2 / 3)
+
+
+# 软标签 accuracy 是 top-1 预测类别获得的目标概率质量。
+def test_classification_metrics_accumulates_soft_target_accuracy():
+    """Measure fractional target mass for Mixup-style probability targets."""
+
+    metrics = ClassificationMetrics()
+    metrics.update(
+        loss=torch.tensor(0.5),
+        logits=torch.tensor([
+            [3.0, 1.0, 0.0],
+            [0.0, 3.0, 1.0],
+        ]),
+        labels=torch.tensor([
+            [0.7, 0.3, 0.0],
+            [0.4, 0.6, 0.0],
+        ]),
+    )
+
+    result = metrics.compute()
+    assert result["loss"] == pytest.approx(0.5)
+    assert result["accuracy"] == pytest.approx(0.65)
 
 
 # 没有加入任何样本时，compute() 应主动报告使用错误。
@@ -650,6 +693,89 @@ def test_train_one_epoch_runs_real_cuda_amp_update():
     assert not torch.equal(model.weight, weight_before)
 
 
+# fit 必须把训练和验证 batch 分别交给对应的 criterion。
+def test_fit_uses_separate_train_and_validation_criteria():
+    """Keep training regularization out of validation loss computation."""
+
+    device = torch.device("cpu")
+    model = EvaluationProbe().to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=2,
+        shuffle=False,
+    )
+    train_criterion = LossProbe(1.25)
+    val_criterion = LossProbe(2.5)
+
+    history = fit(
+        model=model,
+        train_loader=loader,
+        val_loader=loader,
+        train_criterion=train_criterion,
+        val_criterion=val_criterion,
+        optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
+        device=device,
+        epochs=1,
+    )
+
+    assert history[0]["train_loss"] == pytest.approx(1.25)
+    assert history[0]["val_loss"] == pytest.approx(2.5)
+    assert train_criterion.call_count == 1
+    assert val_criterion.call_count == 1
+
+
+# batch mixer 只能处理训练 batch；验证必须保留原图和硬标签 accuracy。
+def test_fit_applies_batch_mixer_to_training_only():
+    """Keep batch mixing out of the validation path."""
+
+    device = torch.device("cpu")
+    model = nn.Linear(2, 2, bias=False).to(device)
+    with torch.no_grad():
+        model.weight.copy_(torch.eye(2))
+
+    loader = DataLoader(
+        TensorDataset(
+            torch.tensor([[1.0, 0.0], [0.0, 1.0]]),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=2,
+        shuffle=False,
+    )
+    mixer_calls = 0
+
+    def batch_mixer(images, labels):
+        nonlocal mixer_calls
+        mixer_calls += 1
+        return BatchMixResult(
+            images=images,
+            targets=torch.tensor(
+                [[0.7, 0.3], [0.3, 0.7]],
+                device=images.device,
+            ),
+            lambda_value=0.7,
+            permutation=torch.tensor([1, 0], device=images.device),
+        )
+
+    history = fit(
+        model=model,
+        train_loader=loader,
+        val_loader=loader,
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
+        optimizer=torch.optim.SGD(model.parameters(), lr=0.0),
+        device=device,
+        epochs=1,
+        batch_mixer=batch_mixer,
+    )
+
+    assert mixer_calls == 1
+    assert history[0]["train_accuracy"] == pytest.approx(0.7)
+    assert history[0]["val_accuracy"] == pytest.approx(1.0)
+
+
 # fit 把 epoch 边界 LR 写入 history，并把 scheduler 状态保存进 checkpoint。
 def test_fit_persists_learning_rate_and_scheduler_state(tmp_path: Path):
     """Record per-epoch LR and checkpoint the matching scheduler position."""
@@ -677,7 +803,8 @@ def test_fit_persists_learning_rate_and_scheduler_state(tmp_path: Path):
         model=model,
         train_loader=loader,
         val_loader=loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=optimizer,
         device=device,
         epochs=2,
@@ -752,7 +879,8 @@ def test_amp_resume_matches_continuous_lr_and_scaler_timeline(tmp_path: Path):
         model=continuous[0],
         train_loader=loader,
         val_loader=loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=continuous[1],
         device=device,
         epochs=4,
@@ -766,7 +894,8 @@ def test_amp_resume_matches_continuous_lr_and_scaler_timeline(tmp_path: Path):
         model=interrupted[0],
         train_loader=loader,
         val_loader=loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=interrupted[1],
         device=device,
         epochs=2,
@@ -797,7 +926,8 @@ def test_amp_resume_matches_continuous_lr_and_scaler_timeline(tmp_path: Path):
         model=resumed[0],
         train_loader=loader,
         val_loader=loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=resumed[1],
         device=device,
         epochs=4,
@@ -839,7 +969,8 @@ def test_fit_applies_separate_batch_limits_on_every_epoch():
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
         device=device,
         epochs=2,
@@ -881,7 +1012,8 @@ def test_fit_rejects_invalid_limits_before_any_parameter_update(
             model=model,
             train_loader=loader,
             val_loader=loader,
-            criterion=nn.CrossEntropyLoss(),
+            train_criterion=nn.CrossEntropyLoss(),
+            val_criterion=nn.CrossEntropyLoss(),
             optimizer=optimizer,
             device=device,
             epochs=1,
@@ -940,7 +1072,8 @@ def test_fit_runs_each_epoch_and_builds_history(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
         device=device,
         epochs=2,
@@ -1080,7 +1213,8 @@ def test_fit_rejects_non_positive_epochs(epochs):
             model=model,
             train_loader=loader,
             val_loader=loader,
-            criterion=nn.CrossEntropyLoss(),
+            train_criterion=nn.CrossEntropyLoss(),
+            val_criterion=nn.CrossEntropyLoss(),
             optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
             device=device,
             epochs=epochs,
@@ -1126,7 +1260,8 @@ def test_fit_resumes_from_last_checkpoint_without_losing_history(
         model=source_model,
         train_loader=train_loader,
         val_loader=val_loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=source_optimizer,
         device=device,
         epochs=1,
@@ -1151,7 +1286,8 @@ def test_fit_resumes_from_last_checkpoint_without_losing_history(
         model=resumed_model,
         train_loader=train_loader,
         val_loader=val_loader,
-        criterion=nn.CrossEntropyLoss(),
+        train_criterion=nn.CrossEntropyLoss(),
+        val_criterion=nn.CrossEntropyLoss(),
         optimizer=resumed_optimizer,
         device=device,
         epochs=3,
@@ -1240,7 +1376,8 @@ def test_fit_rejects_inconsistent_resume_state(
             model=model,
             train_loader=loader,
             val_loader=loader,
-            criterion=nn.CrossEntropyLoss(),
+            train_criterion=nn.CrossEntropyLoss(),
+            val_criterion=nn.CrossEntropyLoss(),
             optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
             device=device,
             epochs=epochs,

@@ -1,5 +1,6 @@
 """Reusable training and evaluation loops."""
 
+from collections.abc import Callable
 from contextlib import nullcontext
 import math
 from pathlib import Path
@@ -17,6 +18,7 @@ from src.gradients import (
     validate_gradient_clip_norm,
 )
 from src.metrics import ClassificationMetrics
+from src.regularization import BatchMixResult
 from src.schedulers import WarmupCosineScheduler
 from src.utils import save_checkpoint, save_history_csv
 
@@ -69,6 +71,9 @@ def train_one_epoch(
     scheduler: WarmupCosineScheduler | None = None,
     gradient_clip_norm: float | None = None,
     amp_runtime: AmpRuntime | None = None,
+    batch_mixer: Callable[
+        [torch.Tensor, torch.Tensor], BatchMixResult
+    ] | None = None,
 ) -> dict[str, float]:
     """Train a model for one epoch and return aggregated metrics."""
 
@@ -106,6 +111,15 @@ def train_one_epoch(
         images = images.to(device)
         labels = labels.to(device)
 
+        # Batch-level 正则化只作用于训练路径。没有 mixer 时继续使用
+        # 原始图片和整数标签，保持已有实验行为不变。
+        if batch_mixer is None:
+            targets = labels
+        else:
+            mixed_batch = batch_mixer(images, labels)
+            images = mixed_batch.images
+            targets = mixed_batch.targets
+
         # 清除上一个 step 留下的梯度，避免梯度意外累加。
         optimizer.zero_grad(set_to_none=True)
 
@@ -118,7 +132,7 @@ def train_one_epoch(
         )
         with autocast_context:
             logits = model(images)
-            loss = criterion(logits, labels)
+            loss = criterion(logits, targets)
 
         # AMP 会先生成 scaled gradients，再恢复为真实尺度；FP32
         # runtime 与未提供 runtime 时都执行普通 backward。
@@ -189,7 +203,7 @@ def train_one_epoch(
         metrics.update(
             loss=loss,
             logits=logits,
-            labels=labels,
+            labels=targets,
         )
 
         # 在当前 batch 完整处理后停止，避免预先读取额外 batch。
@@ -359,7 +373,8 @@ def fit(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
-    criterion: nn.Module,
+    train_criterion: nn.Module,
+    val_criterion: nn.Module,
     optimizer: Optimizer,
     device: torch.device,
     epochs: int,
@@ -374,6 +389,9 @@ def fit(
     scheduler: WarmupCosineScheduler | None = None,
     gradient_clip_norm: float | None = None,
     amp_runtime: AmpRuntime | None = None,
+    batch_mixer: Callable[
+        [torch.Tensor, torch.Tensor], BatchMixResult
+    ] | None = None,
 ) -> list[dict[str, int | float]]:
     """Train and validate a model for multiple epochs."""
 
@@ -431,19 +449,20 @@ def fit(
         train_metrics = train_one_epoch(
             model=model,
             loader=train_loader,
-            criterion=criterion,
+            criterion=train_criterion,
             optimizer=optimizer,
             device=device,
             max_batches=max_train_batches,
             scheduler=scheduler,
             gradient_clip_norm=gradient_clip_norm,
             amp_runtime=amp_runtime,
+            batch_mixer=batch_mixer,
         )
 
         val_metrics = evaluate(
             model=model,
             loader=val_loader,
-            criterion=criterion,
+            criterion=val_criterion,
             device=device,
             max_batches=max_val_batches,
         )

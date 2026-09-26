@@ -125,17 +125,19 @@ def test_write_run_status_atomically_replaces_lifecycle_state(tmp_path: Path):
 
     assert persisted == completed
     assert persisted["format_version"] == 2
+    assert persisted["run_type"] == "formal"
     assert persisted["aggregation_eligible"] is True
     assert not status_path.with_name("run_status.json.tmp").exists()
 
 
-# smoke、dirty 和失败运行都不能进入正式聚合。
+# smoke、screening、dirty 和失败运行都不能进入正式聚合。
 @pytest.mark.parametrize(
-    ("status", "is_smoke_test", "git_is_dirty", "error_type"),
+    ("status", "is_smoke_test", "git_is_dirty", "error_type", "run_type"),
     [
-        ("completed", True, False, None),
-        ("completed", False, True, None),
-        ("failed", False, False, "RuntimeError"),
+        ("completed", True, False, None, "smoke"),
+        ("completed", False, False, None, "screening"),
+        ("completed", False, True, None, "formal"),
+        ("failed", False, False, "RuntimeError", "formal"),
     ],
 )
 def test_write_run_status_excludes_ineligible_runs(
@@ -144,6 +146,7 @@ def test_write_run_status_excludes_ineligible_runs(
     is_smoke_test,
     git_is_dirty,
     error_type,
+    run_type,
 ):
     """Mark diagnostic, uncommitted, and failed runs as ineligible."""
 
@@ -155,6 +158,7 @@ def test_write_run_status_excludes_ineligible_runs(
         git_commit="abc123",
         git_is_dirty=git_is_dirty,
         target_epochs=1,
+        run_type=run_type,
         completed_epochs=1 if status == "completed" else None,
         error_type=error_type,
         error_message="boom" if error_type else None,

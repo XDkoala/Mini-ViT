@@ -360,7 +360,7 @@ warmup_steps = warmup_epochs × steps_per_epoch
 - [x] AMP 关闭时保持 FP32 路径。
 - [x] scaler 与 scheduler 可续训。
 - [x] history 记录 LR 和 gradient norm。
-- [ ] 最佳方案只依据 validation。
+- [x] 最佳方案只依据 validation。
 
 ## 9. 阶段 12：小数据正则化
 

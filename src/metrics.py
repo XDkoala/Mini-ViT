@@ -13,7 +13,7 @@ class ClassificationMetrics:
     def reset(self) -> None:
         """Clear all accumulated statistics."""
         self.total_loss = 0.0
-        self.total_correct = 0
+        self.total_correct = 0.0
         self.total_samples = 0
 
     @torch.no_grad()    # 表示执行时，PyTorch 不需要为其中的运算建立反向传播计算图。
@@ -31,10 +31,21 @@ class ClassificationMetrics:
         # loss 是当前 batch 的平均 loss，乘以样本数还原为总 loss。
         self.total_loss += loss.item() * batch_size
 
-        # 比较预测类别和真实类别，累计预测正确的样本数。
-        self.total_correct += (
-            predictions == labels
-        ).sum().item()
+        if labels.ndim == 1:
+            # 硬标签：每个样本的正确贡献只能是 0 或 1。
+            correct = (predictions == labels).sum().item()
+        elif labels.ndim == 2 and labels.shape == logits.shape:
+            # 软标签：top-1 类别获得的目标概率质量就是该样本的贡献。
+            correct = labels.gather(
+                dim=1,
+                index=predictions.unsqueeze(1),
+            ).sum().item()
+        else:
+            raise ValueError(
+                "labels must have shape [batch_size] or match logits shape."
+            )
+
+        self.total_correct += correct
 
         self.total_samples += batch_size
 

@@ -20,6 +20,7 @@ def create_run(
     git_commit: str | None = "abc123",
     git_is_dirty: bool | None = False,
     completed_epochs: int | None = 2,
+    run_type: str = "formal",
 ) -> Path:
     """Create one lightweight run directory with realistic text artifacts."""
 
@@ -71,6 +72,7 @@ def create_run(
         git_commit=git_commit,
         git_is_dirty=git_is_dirty,
         target_epochs=2,
+        run_type=run_type,
         completed_epochs=completed_epochs,
         error_type="RuntimeError" if status == "failed" else None,
         error_message="boom" if status == "failed" else None,
@@ -108,6 +110,7 @@ def test_aggregate_runs_summarizes_only_valid_completed_run(tmp_path: Path):
     [
         ({"status": "running", "completed_epochs": None}, "not 'completed'"),
         ({"is_smoke_test": True}, "smoke test"),
+        ({"run_type": "screening"}, "screening"),
         ({"git_is_dirty": True}, "worktree is dirty"),
         ({"git_commit": None}, "git_commit is missing"),
     ],
