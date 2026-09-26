@@ -22,6 +22,43 @@ from src.utils import save_checkpoint, save_history_csv
 
 # Stage 5
 
+MEBIBYTE = 1024**2
+
+
+def _start_epoch_measurement(device: torch.device) -> float:
+    """Start synchronized epoch timing and reset CUDA peak-memory counters."""
+
+    if device.type == "cuda":
+        # CUDA kernels are asynchronous；计时前先等旧工作完成，避免把
+        # 上一轮尾部算进本轮，或漏掉尚未真正执行的 GPU 工作。
+        torch.cuda.synchronize(device)
+        torch.cuda.reset_peak_memory_stats(device)
+
+    return perf_counter()
+
+
+def _finish_epoch_measurement(
+    device: torch.device,
+    start_time: float,
+) -> tuple[float, dict[str, float]]:
+    """Finish synchronized timing and return optional CUDA peak-memory metrics."""
+
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+    elapsed_seconds = perf_counter() - start_time
+    if device.type != "cuda":
+        return elapsed_seconds, {}
+
+    return elapsed_seconds, {
+        "peak_gpu_memory_allocated_mb": (
+            torch.cuda.max_memory_allocated(device) / MEBIBYTE
+        ),
+        "peak_gpu_memory_reserved_mb": (
+            torch.cuda.max_memory_reserved(device) / MEBIBYTE
+        ),
+    }
+
 def train_one_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -388,8 +425,8 @@ def fit(
     checkpoint_config = {} if config is None else config
 
     for epoch in range(start_epoch, epochs + 1):
-        # perf_counter 只衡量经过时间，不受系统时钟校准影响。
-        epoch_start_time = perf_counter()
+        # CUDA 路径先同步并重置峰值显存；CPU 路径仍只读取单调时钟。
+        epoch_start_time = _start_epoch_measurement(device)
 
         train_metrics = train_one_epoch(
             model=model,
@@ -411,8 +448,12 @@ def fit(
             max_batches=max_val_batches,
         )
 
-        # 记录训练与验证的计算耗时，不把磁盘写入波动算进去。
-        epoch_time_seconds = perf_counter() - epoch_start_time
+        # 训练与验证都结束后同步 CUDA，再停止计时并读取本轮峰值显存。
+        # 磁盘写入仍位于计时范围之外。
+        epoch_time_seconds, resource_metrics = _finish_epoch_measurement(
+            device,
+            epoch_start_time,
+        )
 
         current_val_accuracy = val_metrics["accuracy"]
         is_best = current_val_accuracy > best_val_accuracy
@@ -429,6 +470,7 @@ def fit(
             "epoch_time_seconds": epoch_time_seconds,
             "learning_rate": train_metrics["learning_rate"],
             "gradient_norm": train_metrics["gradient_norm"],
+            **resource_metrics,
         }
         if "gradient_clip_fraction" in train_metrics:
             epoch_record["gradient_clip_fraction"] = train_metrics[
@@ -490,6 +532,14 @@ def fit(
                     f"{train_metrics['gradient_clip_fraction']:.2%} | "
                 )
             )
+            memory_summary = (
+                ""
+                if "peak_gpu_memory_allocated_mb" not in epoch_record
+                else (
+                    "peak_mem="
+                    f"{epoch_record['peak_gpu_memory_allocated_mb']:.1f}MiB | "
+                )
+            )
             print(
                 f"Epoch [{epoch:03d}/{epochs:03d}] | "
                 f"train_loss={train_metrics['loss']:.4f} | "
@@ -499,6 +549,7 @@ def fit(
                 f"lr={train_metrics['learning_rate']:.6g} | "
                 f"grad_norm={train_metrics['gradient_norm']:.4f} | "
                 f"{clip_summary}"
+                f"{memory_summary}"
                 f"time={epoch_time_seconds:.1f}s | "
                 f"best={best_marker}",
                 flush=True,

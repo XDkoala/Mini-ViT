@@ -336,6 +336,8 @@ def test_save_history_csv_writes_complete_table(tmp_path: Path):
             "learning_rate": "",
             "gradient_norm": "",
             "gradient_clip_fraction": "",
+            "peak_gpu_memory_allocated_mb": "",
+            "peak_gpu_memory_reserved_mb": "",
         },
         {
             "epoch": "2",
@@ -347,6 +349,8 @@ def test_save_history_csv_writes_complete_table(tmp_path: Path):
             "learning_rate": "",
             "gradient_norm": "",
             "gradient_clip_fraction": "",
+            "peak_gpu_memory_allocated_mb": "",
+            "peak_gpu_memory_reserved_mb": "",
         },
     ]
 
@@ -369,6 +373,8 @@ def test_save_history_csv_supports_mixed_base_and_extended_rows(tmp_path: Path):
         "learning_rate": 0.0003,
         "gradient_norm": 1.25,
         "gradient_clip_fraction": 0.1,
+        "peak_gpu_memory_allocated_mb": 512.5,
+        "peak_gpu_memory_reserved_mb": 640.0,
     }
     output_path = tmp_path / "mixed_history.csv"
 
@@ -384,6 +390,10 @@ def test_save_history_csv_supports_mixed_base_and_extended_rows(tmp_path: Path):
     assert rows[1]["learning_rate"] == "0.0003"
     assert rows[1]["gradient_norm"] == "1.25"
     assert rows[1]["gradient_clip_fraction"] == "0.1"
+    assert rows[0]["peak_gpu_memory_allocated_mb"] == ""
+    assert rows[0]["peak_gpu_memory_reserved_mb"] == ""
+    assert rows[1]["peak_gpu_memory_allocated_mb"] == "512.5"
+    assert rows[1]["peak_gpu_memory_reserved_mb"] == "640.0"
     assert HISTORY_FIELDS == (
         *BASE_HISTORY_FIELDS,
         *OPTIONAL_HISTORY_FIELDS,

@@ -100,6 +100,55 @@ class AmpStepProbe:
         return update_succeeded
 
 
+# CUDA 计时必须在起止点同步，并将 allocated/reserved 峰值转换为 MiB。
+def test_epoch_measurement_synchronizes_and_records_cuda_memory(monkeypatch):
+    """Measure completed GPU work and report both CUDA memory peak concepts."""
+
+    events: list[tuple[str, torch.device]] = []
+    device = torch.device("cuda")
+    clock = iter((10.0, 12.5))
+
+    monkeypatch.setattr(
+        engine_module,
+        "perf_counter",
+        lambda: next(clock),
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "synchronize",
+        lambda target: events.append(("synchronize", target)),
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "reset_peak_memory_stats",
+        lambda target: events.append(("reset", target)),
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "max_memory_allocated",
+        lambda target: 512 * 1024**2,
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "max_memory_reserved",
+        lambda target: 640 * 1024**2,
+    )
+
+    start = engine_module._start_epoch_measurement(device)
+    elapsed, metrics = engine_module._finish_epoch_measurement(device, start)
+
+    assert events == [
+        ("synchronize", device),
+        ("reset", device),
+        ("synchronize", device),
+    ]
+    assert elapsed == pytest.approx(2.5)
+    assert metrics == {
+        "peak_gpu_memory_allocated_mb": 512.0,
+        "peak_gpu_memory_reserved_mb": 640.0,
+    }
+
+
 # 不同大小的 batch 必须按照样本数加权，不能简单平均 batch 指标。
 def test_classification_metrics_weights_batches_by_sample_count():
     """Compute epoch metrics correctly across unequal batch sizes."""

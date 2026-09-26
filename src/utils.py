@@ -34,6 +34,8 @@ OPTIONAL_HISTORY_FIELDS = (
     "learning_rate",
     "gradient_norm",
     "gradient_clip_fraction",
+    "peak_gpu_memory_allocated_mb",
+    "peak_gpu_memory_reserved_mb",
 )
 
 HISTORY_FIELDS = (

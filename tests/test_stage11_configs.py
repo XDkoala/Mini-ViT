@@ -14,6 +14,10 @@ CONFIG_PATHS = {
     "o2": CONFIG_DIR / "o2_warmup_cosine.yaml",
     "o3": CONFIG_DIR / "o3_warmup_cosine_clip.yaml",
 }
+AMP_EFFICIENCY_PATHS = {
+    "fp32": CONFIG_DIR / "amp_efficiency_fp32.yaml",
+    "amp": CONFIG_DIR / "amp_efficiency_cuda.yaml",
+}
 
 
 def load_matrix() -> dict[str, dict[str, object]]:
@@ -95,4 +99,30 @@ def test_stage11_matrix_uses_unique_formal_output_directories():
     assert all(
         str(path).startswith("outputs/advanced/stage11/")
         for path in output_dirs
+    )
+
+
+# AMP 效率对照必须完整继承 O3，只允许 experiment identity 与 amp 开关不同。
+def test_stage11_amp_efficiency_pair_changes_only_amp():
+    """Compare FP32 and CUDA AMP with an otherwise identical O3 recipe."""
+
+    o3 = load_config(CONFIG_PATHS["o3"])
+    fp32 = load_config(AMP_EFFICIENCY_PATHS["fp32"])
+    amp = load_config(AMP_EFFICIENCY_PATHS["amp"])
+
+    assert fp32["randomness"] == amp["randomness"] == o3["randomness"]
+    assert fp32["device"] == amp["device"] == o3["device"]
+    assert fp32["data"] == amp["data"] == o3["data"]
+    assert fp32["model"] == amp["model"] == o3["model"]
+    assert fp32["training"] == o3["training"]
+
+    amp_training = deepcopy(amp["training"])
+    amp_training["amp"] = False
+    assert amp_training == fp32["training"]
+    assert amp["training"]["amp"] is True
+
+    assert fp32["experiment"]["name"] != amp["experiment"]["name"]
+    assert (
+        fp32["experiment"]["output_dir"]
+        != amp["experiment"]["output_dir"]
     )

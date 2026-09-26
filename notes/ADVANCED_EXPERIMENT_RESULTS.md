@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 10 基础设施已完成，尚无进阶正式实验
+当前状态：阶段 11 O0–O3 优化消融已完成，AMP 效率对照待运行
 
 ## 1. 记录规则
 
@@ -31,10 +31,12 @@
 
 ## 3. 进阶正式实验总表
 
-当前暂无合格的进阶正式实验。阶段 11 开始后，由聚合结果更新下表。
-
 | 阶段 | Experiment ID | Split Seed | Train Seed | Best Epoch | Best Val Acc | Final Val Acc | Test Acc | Git Commit | 结论 |
 |---|---|---:|---:|---:|---:|---:|---:|---|---|
+| 11 | stage11_o0_fixed_lr_split42_train42 | 42 | 42 | 80 | 81.84% | 81.36% | 未使用 | c58bc61 | 固定 LR 基线，与基础项目复现一致 |
+| 11 | stage11_o1_cosine_split42_train42 | 42 | 42 | 79 | 82.94% | 82.88% | 未使用 | c58bc61 | cosine 相对 O0 提升 1.10 pp |
+| 11 | stage11_o2_warmup_cosine_split42_train42 | 42 | 42 | 100 | 82.92% | 82.92% | 未使用 | c58bc61 | 与 O1 接近；warmup 使早期梯度更平稳 |
+| 11 | stage11_o3_warmup_cosine_clip_split42_train42 | 42 | 42 | 91 | 83.00% | 82.98% | 未使用 | c58bc61 | 数值最高，但只比 O2 高 0.08 pp；裁剪几乎持续触发 |
 
 ## 4. 阶段 10 基础设施验证
 
@@ -47,7 +49,37 @@
 
 两次运行均成功生成有效配置、完整 history、best.pt、last.pt 和 run_status.json。排除是实验协议的正确行为，不是训练失败。
 
-## 5. 后续更新要求
+## 5. 阶段 11：O0–O3 优化消融
+
+四组均完成 100 epochs，来自同一 clean commit `c58bc61317c4c2c3d6c7dc5bfc018b6f058b2ee2`，聚合结果为 `eligible=4, skipped=0`。模型、数据、seed、batch size、epoch 与 AdamW 基础设置完全一致；只累积改变 cosine、warmup 与 clipping。整个选择过程未读取 test split。
+
+| Run | 策略 | Best Val Acc | Best Epoch | Final Train Acc | Final Val Acc | Mean Epoch Time |
+|---|---|---:|---:|---:|---:|---:|
+| O0 | fixed LR | 81.84% | 80 | 95.20% | 81.36% | 20.67 s |
+| O1 | cosine | 82.94% | 79 | 98.20% | 82.88% | 21.02 s |
+| O2 | 5-epoch warmup + cosine | 82.92% | 100 | 98.47% | 82.92% | 21.28 s |
+| O3 | O2 + clip norm 1.0 | **83.00%** | 91 | 98.53% | **82.98%** | 21.54 s* |
+
+`*` O3 的 epoch 98–100 出现明显系统耗时异常，median epoch time 为 20.98 s；不能把表中微小耗时差异解释为 clipping 的稳定成本。
+
+主要结论：
+
+1. O1 比 O0 提升 1.10 pp，支持在 100-epoch MiniViT 上使用 cosine decay；
+2. O1 与 O2 只差 0.02 pp，当前单 seed 不支持 warmup 带来明确最终精度收益；
+3. O2 前 5 轮 loss 下降更慢，但梯度范数标准差从 O1 的 0.343 降到 0.117，说明 warmup 改变早期更新轨迹并使梯度规模变化更平稳；
+4. O3 比 O2 只高 0.08 pp，属于预定义的“接近”；
+5. O3 平均 clip fraction 为 99.54%，100 个 epoch 全部不低于 90%，其中 78 轮为 100%。阈值 1.0 不是偶发保险丝，而是持续优化约束；
+6. O1–O3 最大差距仅 0.08 pp，且目前只有一个 train seed，不能据此宣称三者存在稳定优劣。
+
+当前数值排序：
+
+~~~text
+O3 83.00% > O1 82.94% > O2 82.92% > O0 81.84%
+~~~
+
+阶段 11 仍需使用同一 O3 配方完成 AMP 开/关效率对照。后续配方选择只使用 validation、复杂度和稳定性证据，不使用 test。
+
+## 6. 后续更新要求
 
 每组正式实验结束后：
 
