@@ -12,6 +12,82 @@ from torchvision.datasets import CIFAR10
 CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
 
+
+def _validate_data_seed(
+    value: object,
+    field_name: str,
+) -> int:
+    """Validate a seed passed directly to the data-layer API."""
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer.")
+
+    if not 0 <= value < 2**32:
+        raise ValueError(
+            f"{field_name} must be in the range [0, 2**32)."
+        )
+
+    return value
+
+
+def _resolve_dataset_split_seed(
+    legacy_seed: int | None,
+    split_seed: int | None,
+) -> int:
+    """Resolve a legacy dataset seed or one explicit split seed."""
+
+    if legacy_seed is not None and split_seed is not None:
+        raise ValueError(
+            "Use either legacy seed or split_seed, not both."
+        )
+
+    selected_seed = (
+        split_seed
+        if split_seed is not None
+        else legacy_seed
+    )
+    if selected_seed is None:
+        raise ValueError("split_seed is required.")
+
+    return _validate_data_seed(selected_seed, "split_seed")
+
+
+def _resolve_dataloader_seeds(
+    legacy_seed: int | None,
+    split_seed: int | None,
+    train_seed: int | None,
+) -> tuple[int, int]:
+    """Resolve legacy coupled seeds or explicit split/training seeds."""
+
+    has_legacy_seed = legacy_seed is not None
+    has_explicit_seed = (
+        split_seed is not None
+        or train_seed is not None
+    )
+
+    if has_legacy_seed and has_explicit_seed:
+        raise ValueError(
+            "Use either legacy seed or explicit "
+            "split_seed/train_seed, not both."
+        )
+
+    if has_legacy_seed:
+        resolved_seed = _validate_data_seed(
+            legacy_seed,
+            "seed",
+        )
+        return resolved_seed, resolved_seed
+
+    if split_seed is None or train_seed is None:
+        raise ValueError(
+            "split_seed and train_seed are both required."
+        )
+
+    return (
+        _validate_data_seed(split_seed, "split_seed"),
+        _validate_data_seed(train_seed, "train_seed"),
+    )
+
 # 定义数据集的图像变换
 def build_transforms(
     augmentation: str = "basic",
@@ -93,10 +169,17 @@ def split_train_val_indices(
 # Stage 1, Step 5
 def build_datasets(
     data_dir: str | Path,
-    seed: int,
+    seed: int | None = None,
     augmentation: str = "basic",
+    *,
+    split_seed: int | None = None,
 ) -> tuple[Dataset, Dataset, Dataset, list[str]]:
-    """Build CIFAR-10 training, validation, and test datasets."""
+    """Build datasets using a legacy seed or one explicit split seed."""
+    resolved_split_seed = _resolve_dataset_split_seed(
+        legacy_seed=seed,
+        split_seed=split_seed,
+    )
+
     # 获取两套变换
     train_transform, eval_transform = build_transforms(
         augmentation=augmentation,
@@ -130,7 +213,7 @@ def build_datasets(
     train_indices, val_indices = split_train_val_indices(
         dataset_size=len(train_source),
         val_size=CIFAR10_VAL_SIZE,
-        seed=seed,
+        seed=resolved_split_seed,
     )
 
     # 用索引建立子集
@@ -148,8 +231,11 @@ def build_dataloaders(
     data_dir: str | Path,
     batch_size: int,
     num_workers: int,
-    seed: int,
+    seed: int | None = None,
     augmentation: str = "basic",
+    *,
+    split_seed: int | None = None,
+    train_seed: int | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
     """Build the CIFAR-10 training, validation, and test DataLoaders.
 
@@ -157,8 +243,10 @@ def build_dataloaders(
         data_dir: Directory used to download or read CIFAR-10.
         batch_size: Number of samples in each batch.
         num_workers: Number of worker processes used for data loading.
-        seed: Random seed used for the train/validation split.
+        seed: Legacy seed controlling both the split and training shuffle.
         augmentation: Training augmentation mode: ``basic`` or ``none``.
+        split_seed: Explicit seed used only for train/validation membership.
+        train_seed: Explicit seed used for the training DataLoader shuffle.
 
     Returns:
         A tuple containing the training DataLoader, validation DataLoader,
@@ -171,15 +259,25 @@ def build_dataloaders(
     if num_workers < 0:
         raise ValueError("num_workers must be non-negative.")
 
+    resolved_split_seed, resolved_train_seed = (
+        _resolve_dataloader_seeds(
+            legacy_seed=seed,
+            split_seed=split_seed,
+            train_seed=train_seed,
+        )
+    )
+
     # 获取 datasets
     train_dataset, val_dataset, test_dataset, class_names = build_datasets(
         data_dir=data_dir,
-        seed=seed,
         augmentation=augmentation,
+        split_seed=resolved_split_seed,
     )
 
-    # 局部随机数生成器
-    train_generator = torch.Generator().manual_seed(seed)
+    # 训练顺序只由 train_seed 控制，不再影响数据集成员划分。
+    train_generator = torch.Generator().manual_seed(
+        resolved_train_seed
+    )
 
     pin_memory = torch.cuda.is_available()
 

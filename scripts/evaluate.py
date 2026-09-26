@@ -10,6 +10,10 @@ import torch
 from torch import nn
 
 from scripts.train import build_model, resolve_project_path
+from src.config import (
+    resolve_format_version,
+    resolve_random_seeds,
+)
 from src.data import build_dataloaders
 from src.engine import evaluate_with_predictions
 from src.utils import resolve_device, set_seed
@@ -91,6 +95,8 @@ def load_evaluation_checkpoint(
         weights_only=True,
     )
 
+    format_version = resolve_format_version(checkpoint)
+
     required_keys = {
         "epoch",
         "model_state",
@@ -98,6 +104,12 @@ def load_evaluation_checkpoint(
         "history",
         "config",
     }
+    if format_version >= 2:
+        required_keys.update({
+            "scheduler_state",
+            "scaler_state",
+            "run_metadata",
+        })
     missing_keys = required_keys - checkpoint.keys()
 
     if missing_keys:
@@ -227,8 +239,8 @@ def main(
     )
     config = checkpoint["config"]
 
-    seed = int(config["seed"])
-    set_seed(seed)
+    split_seed, train_seed = resolve_random_seeds(config)
+    set_seed(train_seed)
     device = resolve_device(str(config["device"]))
 
     data_config = config["data"]
@@ -240,8 +252,9 @@ def main(
         data_dir=data_dir,
         batch_size=int(data_config["batch_size"]),
         num_workers=int(data_config["num_workers"]),
-        seed=seed,
         augmentation=str(data_config.get("augmentation", "basic")),
+        split_seed=split_seed,
+        train_seed=train_seed,
     )
 
     model = build_model(

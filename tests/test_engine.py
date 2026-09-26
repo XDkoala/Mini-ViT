@@ -1,6 +1,7 @@
 """Tests for reusable training and evaluation utilities."""
 
 import csv
+from contextlib import nullcontext
 import math
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 import src.engine as engine_module
+from src.amp import AmpRuntime, build_amp_runtime
 from src.engine import (
     evaluate,
     evaluate_with_predictions,
@@ -17,6 +19,7 @@ from src.engine import (
     train_one_epoch,
 )
 from src.metrics import ClassificationMetrics
+from src.schedulers import WarmupCosineScheduler
 from src.utils import load_checkpoint
 
 
@@ -65,6 +68,36 @@ class CountingBatchLoader:
         for batch in self.batches:
             self.yield_count += 1
             yield batch
+
+
+class AmpStepProbe:
+    """Mimic AMP ordering while choosing whether each optimizer step succeeds."""
+
+    def __init__(self, update_results: list[bool]) -> None:
+        self.requested = True
+        self.enabled = True
+        self.device_type = "cpu"
+        self.scaler = None
+        self.update_results = iter(update_results)
+        self.events: list[str] = []
+
+    def autocast(self):
+        self.events.append("autocast")
+        return nullcontext()
+
+    def backward(self, loss):
+        self.events.append("backward")
+        loss.backward()
+
+    def unscale_gradients(self, optimizer):
+        self.events.append("unscale")
+
+    def step_optimizer(self, optimizer):
+        self.events.append("step")
+        update_succeeded = next(self.update_results)
+        if update_succeeded:
+            optimizer.step()
+        return update_succeeded
 
 
 # 不同大小的 batch 必须按照样本数加权，不能简单平均 batch 指标。
@@ -338,6 +371,406 @@ def test_epoch_loops_reject_non_positive_max_batches(max_batches):
     assert loader.yield_count == 0
 
 
+# scheduler 只在成功 optimizer update 后推进，返回本轮最后实际使用的 LR。
+def test_train_one_epoch_steps_scheduler_and_reports_last_used_lr():
+    """Advance once per batch while reporting the LR consumed by the final batch."""
+
+    device = torch.device("cpu")
+    model = nn.Linear(1, 2).to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=1,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    scheduler = WarmupCosineScheduler(
+        optimizer,
+        total_steps=2,
+        warmup_steps=1,
+        start_factor=0.1,
+        min_factor=0.2,
+    )
+
+    result = train_one_epoch(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+        scheduler=scheduler,
+    )
+
+    # update 0 使用峰值 0.1；update 1 使用最小值 0.02。
+    assert result["learning_rate"] == pytest.approx(0.02)
+    assert scheduler.completed_updates == 2
+    assert scheduler.get_current_lrs() == pytest.approx([0.02])
+
+
+# 每批都应在 backward 后、optimizer.step 前测量，并按更新次数取平均。
+def test_train_one_epoch_records_mean_pre_update_gradient_norm(monkeypatch):
+    """Measure every pre-update gradient and return their arithmetic mean."""
+
+    device = torch.device("cpu")
+    model = nn.Linear(1, 2).to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=1,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    measured_norms = iter((2.0, 4.0))
+    events: list[str] = []
+    original_step = optimizer.step
+
+    def fake_compute_gradient_norm(parameters):
+        parameters = list(parameters)
+        assert parameters
+        assert all(parameter.grad is not None for parameter in parameters)
+        events.append("measure")
+        return next(measured_norms)
+
+    def recording_step(*args, **kwargs):
+        events.append("step")
+        return original_step(*args, **kwargs)
+
+    monkeypatch.setattr(
+        engine_module,
+        "compute_gradient_norm",
+        fake_compute_gradient_norm,
+    )
+    monkeypatch.setattr(optimizer, "step", recording_step)
+
+    result = train_one_epoch(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+    )
+
+    assert events == ["measure", "step", "measure", "step"]
+    assert result["gradient_norm"] == pytest.approx(3.0)
+
+
+# 启用裁剪后应记录裁剪前范数，并区分触发与未触发的 update。
+def test_train_one_epoch_clips_gradients_and_records_trigger_fraction(
+    monkeypatch,
+):
+    """Clip before every optimizer step and report the trigger fraction."""
+
+    device = torch.device("cpu")
+    model = nn.Linear(1, 2).to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=1,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    clipping_results = iter(((4.0, True), (2.0, False)))
+    events: list[str] = []
+    original_step = optimizer.step
+
+    def fake_clip_gradient_norm(parameters, max_norm):
+        assert all(parameter.grad is not None for parameter in parameters)
+        assert max_norm == pytest.approx(3.0)
+        events.append("clip")
+        return next(clipping_results)
+
+    def recording_step(*args, **kwargs):
+        events.append("step")
+        return original_step(*args, **kwargs)
+
+    monkeypatch.setattr(
+        engine_module,
+        "clip_gradient_norm",
+        fake_clip_gradient_norm,
+    )
+    monkeypatch.setattr(optimizer, "step", recording_step)
+
+    result = train_one_epoch(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+        gradient_clip_norm=3.0,
+    )
+
+    assert events == ["clip", "step", "clip", "step"]
+    assert result["gradient_norm"] == pytest.approx(3.0)
+    assert result["gradient_clip_fraction"] == pytest.approx(0.5)
+
+
+# AMP 溢出跳过参数更新时，scheduler 和成功更新统计都不能前进。
+def test_train_one_epoch_amp_skip_keeps_scheduler_on_successful_updates(
+    monkeypatch,
+):
+    """Advance metrics and scheduler only for successful AMP optimizer steps."""
+
+    device = torch.device("cpu")
+    model = nn.Linear(1, 2).to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=1,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    scheduler = WarmupCosineScheduler(
+        optimizer,
+        total_steps=2,
+        warmup_steps=0,
+        start_factor=0.1,
+        min_factor=0.2,
+    )
+    amp_runtime = AmpStepProbe([False, True])
+    measured_norms = iter((float("inf"), 2.0))
+
+    def fake_compute_gradient_norm(parameters, *, error_if_nonfinite):
+        assert error_if_nonfinite is False
+        amp_runtime.events.append("measure")
+        return next(measured_norms)
+
+    monkeypatch.setattr(
+        engine_module,
+        "compute_gradient_norm",
+        fake_compute_gradient_norm,
+    )
+
+    result = train_one_epoch(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+        scheduler=scheduler,
+        amp_runtime=amp_runtime,
+    )
+
+    assert amp_runtime.events == [
+        "autocast", "backward", "unscale", "measure", "step",
+        "autocast", "backward", "unscale", "measure", "step",
+    ]
+    assert scheduler.completed_updates == 1
+    assert result["gradient_norm"] == pytest.approx(2.0)
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available(),
+    reason="CUDA is required for a real FP16 AMP training update.",
+)
+def test_train_one_epoch_runs_real_cuda_amp_update():
+    """Execute autocast, scaling, unscale, and one optimizer update on CUDA."""
+
+    device = torch.device("cuda")
+    model = nn.Linear(4, 2).to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 4),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=2,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    amp_runtime = build_amp_runtime(True, device)
+    weight_before = model.weight.detach().clone()
+
+    result = train_one_epoch(
+        model=model,
+        loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+        amp_runtime=amp_runtime,
+    )
+
+    assert amp_runtime.enabled is True
+    assert math.isfinite(result["gradient_norm"])
+    assert not torch.equal(model.weight, weight_before)
+
+
+# fit 把 epoch 边界 LR 写入 history，并把 scheduler 状态保存进 checkpoint。
+def test_fit_persists_learning_rate_and_scheduler_state(tmp_path: Path):
+    """Record per-epoch LR and checkpoint the matching scheduler position."""
+
+    device = torch.device("cpu")
+    model = EvaluationProbe().to(device)
+    loader = DataLoader(
+        TensorDataset(
+            torch.ones(2, 1),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=1,
+        shuffle=False,
+    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    scheduler = WarmupCosineScheduler(
+        optimizer,
+        total_steps=4,
+        warmup_steps=2,
+        start_factor=0.1,
+        min_factor=0.2,
+    )
+
+    history = fit(
+        model=model,
+        train_loader=loader,
+        val_loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=optimizer,
+        device=device,
+        epochs=2,
+        output_dir=tmp_path,
+        config={"seed": 42},
+        scheduler=scheduler,
+    )
+
+    # 每轮两个 update：epoch 1 最后用峰值，epoch 2 最后用最小值。
+    assert [record["learning_rate"] for record in history] == pytest.approx([
+        0.1,
+        0.02,
+    ])
+    checkpoint = torch.load(
+        tmp_path / "last.pt",
+        map_location="cpu",
+        weights_only=True,
+    )
+    assert checkpoint["scheduler_state"]["completed_updates"] == 4
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available(),
+    reason="CUDA is required for real GradScaler resume continuity.",
+)
+def test_amp_resume_matches_continuous_lr_and_scaler_timeline(tmp_path: Path):
+    """Resume scheduler and GradScaler at the same point as continuous training."""
+
+    device = torch.device("cuda")
+    loader = DataLoader(
+        TensorDataset(
+            torch.tensor([[1.0, 0.0], [0.0, 1.0]]),
+            torch.tensor([0, 1]),
+        ),
+        batch_size=2,
+        shuffle=False,
+    )
+    initial_model = nn.Linear(2, 2)
+    initial_state = {
+        name: tensor.detach().clone()
+        for name, tensor in initial_model.state_dict().items()
+    }
+
+    def build_training_state():
+        model = nn.Linear(2, 2).to(device)
+        model.load_state_dict(initial_state)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        scheduler = WarmupCosineScheduler(
+            optimizer,
+            total_steps=4,
+            warmup_steps=1,
+            start_factor=0.1,
+            min_factor=0.2,
+        )
+        amp_runtime = AmpRuntime(
+            requested=True,
+            enabled=True,
+            device_type="cuda",
+            autocast_dtype=torch.float16,
+            scaler=torch.amp.GradScaler(
+                "cuda",
+                init_scale=1024.0,
+                growth_interval=2,
+                enabled=True,
+            ),
+            fallback_reason=None,
+        )
+        return model, optimizer, scheduler, amp_runtime
+
+    continuous = build_training_state()
+    continuous_history = fit(
+        model=continuous[0],
+        train_loader=loader,
+        val_loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=continuous[1],
+        device=device,
+        epochs=4,
+        scheduler=continuous[2],
+        amp_runtime=continuous[3],
+    )
+
+    interrupted = build_training_state()
+    interrupted_dir = tmp_path / "interrupted"
+    first_history = fit(
+        model=interrupted[0],
+        train_loader=loader,
+        val_loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=interrupted[1],
+        device=device,
+        epochs=2,
+        output_dir=interrupted_dir,
+        config={"training": {"amp": True}},
+        scheduler=interrupted[2],
+        amp_runtime=interrupted[3],
+    )
+
+    assert interrupted[2].completed_updates == 2
+    assert interrupted[3].scaler.get_scale() == pytest.approx(2048.0)
+
+    resumed = build_training_state()
+    resume_state = load_checkpoint(
+        path=interrupted_dir / "last.pt",
+        model=resumed[0],
+        optimizer=resumed[1],
+        device=device,
+        scheduler=resumed[2],
+        scaler=resumed[3].scaler,
+    )
+
+    # 新 scaler 原本从 1024 开始；加载后必须回到中断点 2048。
+    assert resumed[2].completed_updates == 2
+    assert resumed[3].scaler.get_scale() == pytest.approx(2048.0)
+
+    resumed_history = fit(
+        model=resumed[0],
+        train_loader=loader,
+        val_loader=loader,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer=resumed[1],
+        device=device,
+        epochs=4,
+        start_epoch=3,
+        initial_history=resume_state["history"],
+        best_val_accuracy=resume_state["best_val_accuracy"],
+        scheduler=resumed[2],
+        amp_runtime=resumed[3],
+    )
+
+    assert first_history == resume_state["history"]
+    assert [
+        record["learning_rate"] for record in resumed_history
+    ] == pytest.approx([
+        record["learning_rate"] for record in continuous_history
+    ])
+    assert resumed[2].completed_updates == continuous[2].completed_updates == 4
+    assert resumed[3].scaler.get_scale() == pytest.approx(
+        continuous[3].scaler.get_scale()
+    )
+    assert resumed[3].scaler.get_scale() == pytest.approx(4096.0)
+
 # 两个 epoch 都应重新读取各自限定数量的训练与验证 batch。
 def test_fit_applies_separate_batch_limits_on_every_epoch():
     """Limit train and validation iteration independently on each epoch."""
@@ -481,10 +914,16 @@ def test_fit_runs_each_epoch_and_builds_history(
         "val_loss",
         "val_accuracy",
         "epoch_time_seconds",
+        "learning_rate",
+        "gradient_norm",
     }
     assert all(set(record) == expected_keys for record in history)
     assert history[0]["epoch_time_seconds"] == pytest.approx(12.3)
     assert history[1]["epoch_time_seconds"] == pytest.approx(11.8)
+    assert history[0]["learning_rate"] == pytest.approx(0.1)
+    assert history[1]["learning_rate"] == pytest.approx(0.1)
+    assert history[0]["gradient_norm"] > 0.0
+    assert history[1]["gradient_norm"] > 0.0
 
     # verbose 模式应逐轮报告核心指标、耗时及最佳模型状态。
     output_lines = capsys.readouterr().out.strip().splitlines()
@@ -494,6 +933,8 @@ def test_fit_runs_each_epoch_and_builds_history(
     assert "train_acc=" in output_lines[0]
     assert "val_loss=" in output_lines[0]
     assert "val_acc=" in output_lines[0]
+    assert "lr=0.1" in output_lines[0]
+    assert "grad_norm=" in output_lines[0]
     assert "time=12.3s" in output_lines[0]
     assert "best=yes" in output_lines[0]
     assert "Epoch [002/002]" in output_lines[1]
@@ -527,6 +968,8 @@ def test_fit_runs_each_epoch_and_builds_history(
             "val_loss",
             "val_accuracy",
             "epoch_time_seconds",
+            "learning_rate",
+            "gradient_norm",
         ):
             assert float(saved_row[field]) == pytest.approx(
                 history_record[field]

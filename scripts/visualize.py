@@ -11,6 +11,7 @@ from torch import Tensor
 
 from scripts.evaluate import load_evaluation_checkpoint
 from scripts.train import build_model, resolve_project_path
+from src.config import resolve_random_seeds
 from src.data import build_datasets
 from src.utils import resolve_device, set_seed
 from src.visualization import (
@@ -200,13 +201,13 @@ def main(argv: list[str] | None = None) -> list[Path]:
         raise RuntimeError("MiniViT baseline checkpoint was not loaded.")
 
     config = minivit_checkpoint["config"]
-    seed = int(config["seed"])
-    set_seed(seed)
+    split_seed, train_seed = resolve_random_seeds(config)
+    set_seed(train_seed)
     data_config = config["data"]
     _, _, test_dataset, _ = build_datasets(
         data_dir=resolve_project_path(data_config["data_dir"]),
-        seed=seed,
         augmentation=str(data_config.get("augmentation", "basic")),
+        split_seed=split_seed,
     )
 
     # 错误样本图严格按 predictions.csv 的 sample_index 回取原测试图片。

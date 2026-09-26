@@ -1,7 +1,9 @@
 """Tests for experiment persistence utilities."""
 
 import csv
+import json
 import random
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -10,13 +12,178 @@ import torch
 from torch import nn
 
 from src.utils import (
+    BASE_HISTORY_FIELDS,
     HISTORY_FIELDS,
+    OPTIONAL_HISTORY_FIELDS,
+    collect_run_metadata,
     load_checkpoint,
     resolve_device,
     save_checkpoint,
     save_history_csv,
     set_seed,
+    write_run_status,
 )
+
+
+class StateProbe:
+    """Small scheduler/scaler stand-in used to test state round-trips."""
+
+    def __init__(self, value: int):
+        self.value = value
+
+    def state_dict(self) -> dict[str, int]:
+        return {"value": self.value}
+
+    def load_state_dict(self, state: dict[str, int]) -> None:
+        self.value = state["value"]
+
+
+# 元数据必须只包含可写入 YAML/JSON 的事实，并明确记录两类 seed。
+def test_collect_run_metadata_records_reproducibility_facts(monkeypatch):
+    """Collect stable environment fields without embedding runtime objects."""
+
+    monkeypatch.setattr(
+        "src.utils._read_git_commit",
+        lambda project_root: "abc123",
+    )
+    monkeypatch.setattr(
+        "src.utils._read_git_is_dirty",
+        lambda project_root: False,
+    )
+
+    metadata = collect_run_metadata(
+        project_root=Path("."),
+        device=torch.device("cpu"),
+        split_seed=17,
+        train_seed=29,
+        is_smoke_test=True,
+    )
+
+    assert metadata["git_commit"] == "abc123"
+    assert metadata["git_is_dirty"] is False
+    assert metadata["split_seed"] == 17
+    assert metadata["train_seed"] == 29
+    assert metadata["is_smoke_test"] is True
+    assert metadata["device_type"] == "cpu"
+    assert isinstance(metadata["device_name"], str)
+    assert metadata["python_version"]
+    assert metadata["torch_version"] == str(torch.__version__)
+    assert metadata["platform"]
+    datetime.fromisoformat(metadata["created_at_utc"])
+
+
+# Git 不可用不应阻止训练，缺失信息用 null 明确表示。
+def test_collect_run_metadata_allows_unavailable_git(monkeypatch):
+    """Represent an unavailable Git commit as None instead of failing a run."""
+
+    monkeypatch.setattr(
+        "src.utils._read_git_commit",
+        lambda project_root: None,
+    )
+    monkeypatch.setattr(
+        "src.utils._read_git_is_dirty",
+        lambda project_root: None,
+    )
+
+    metadata = collect_run_metadata(
+        project_root=Path("."),
+        device=torch.device("cpu"),
+        split_seed=1,
+        train_seed=2,
+        is_smoke_test=False,
+    )
+
+    assert metadata["git_commit"] is None
+    assert metadata["git_is_dirty"] is None
+
+
+# 状态文件使用固定 schema，并通过临时文件替换避免读到半份 JSON。
+def test_write_run_status_atomically_replaces_lifecycle_state(tmp_path: Path):
+    """Write running then completed state and compute aggregation eligibility."""
+
+    status_path = tmp_path / "run" / "run_status.json"
+    common = {
+        "path": status_path,
+        "experiment_id": "minivit_seed_42",
+        "is_smoke_test": False,
+        "git_commit": "abc123",
+        "git_is_dirty": False,
+        "target_epochs": 2,
+    }
+
+    running = write_run_status(**common, status="running")
+    assert running["aggregation_eligible"] is False
+    assert running["error"] is None
+
+    completed = write_run_status(
+        **common,
+        status="completed",
+        completed_epochs=2,
+    )
+    with status_path.open(encoding="utf-8") as file:
+        persisted = json.load(file)
+
+    assert persisted == completed
+    assert persisted["format_version"] == 2
+    assert persisted["aggregation_eligible"] is True
+    assert not status_path.with_name("run_status.json.tmp").exists()
+
+
+# smoke、dirty 和失败运行都不能进入正式聚合。
+@pytest.mark.parametrize(
+    ("status", "is_smoke_test", "git_is_dirty", "error_type"),
+    [
+        ("completed", True, False, None),
+        ("completed", False, True, None),
+        ("failed", False, False, "RuntimeError"),
+    ],
+)
+def test_write_run_status_excludes_ineligible_runs(
+    tmp_path: Path,
+    status,
+    is_smoke_test,
+    git_is_dirty,
+    error_type,
+):
+    """Mark diagnostic, uncommitted, and failed runs as ineligible."""
+
+    payload = write_run_status(
+        tmp_path / f"{status}.json",
+        status=status,
+        experiment_id="test",
+        is_smoke_test=is_smoke_test,
+        git_commit="abc123",
+        git_is_dirty=git_is_dirty,
+        target_epochs=1,
+        completed_epochs=1 if status == "completed" else None,
+        error_type=error_type,
+        error_message="boom" if error_type else None,
+    )
+
+    assert payload["aggregation_eligible"] is False
+
+
+def test_write_run_status_rejects_inconsistent_terminal_states(tmp_path: Path):
+    """Reject false completion and failures without an error type."""
+
+    common = {
+        "path": tmp_path / "status.json",
+        "experiment_id": "test",
+        "is_smoke_test": False,
+        "git_commit": "abc123",
+        "git_is_dirty": False,
+        "target_epochs": 2,
+    }
+
+    with pytest.raises(ValueError, match="completed_epochs equal"):
+        write_run_status(
+            **common,
+            status="completed",
+            completed_epochs=1,
+        )
+
+    with pytest.raises(ValueError, match="include error_type"):
+        write_run_status(**common, status="failed")
 
 
 def test_set_seed_reproduces_python_numpy_and_torch_sequences():
@@ -166,6 +333,9 @@ def test_save_history_csv_writes_complete_table(tmp_path: Path):
             "val_loss": "1.7",
             "val_accuracy": "0.45",
             "epoch_time_seconds": "12.3",
+            "learning_rate": "",
+            "gradient_norm": "",
+            "gradient_clip_fraction": "",
         },
         {
             "epoch": "2",
@@ -174,8 +344,85 @@ def test_save_history_csv_writes_complete_table(tmp_path: Path):
             "val_loss": "1.4",
             "val_accuracy": "0.6",
             "epoch_time_seconds": "11.8",
+            "learning_rate": "",
+            "gradient_norm": "",
+            "gradient_clip_fraction": "",
         },
     ]
+
+
+# 续训迁移期允许旧行留空、新行填写扩展指标，但列顺序必须统一。
+def test_save_history_csv_supports_mixed_base_and_extended_rows(tmp_path: Path):
+    """Write heterogeneous history rows using blank optional CSV cells."""
+
+    base_record = {
+        "epoch": 1,
+        "train_loss": 1.0,
+        "train_accuracy": 0.5,
+        "val_loss": 1.1,
+        "val_accuracy": 0.4,
+        "epoch_time_seconds": 2.0,
+    }
+    extended_record = {
+        **base_record,
+        "epoch": 2,
+        "learning_rate": 0.0003,
+        "gradient_norm": 1.25,
+        "gradient_clip_fraction": 0.1,
+    }
+    output_path = tmp_path / "mixed_history.csv"
+
+    save_history_csv([base_record, extended_record], output_path)
+
+    with output_path.open(newline="", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+
+    assert tuple(rows[0]) == HISTORY_FIELDS
+    assert rows[0]["learning_rate"] == ""
+    assert rows[0]["gradient_norm"] == ""
+    assert rows[0]["gradient_clip_fraction"] == ""
+    assert rows[1]["learning_rate"] == "0.0003"
+    assert rows[1]["gradient_norm"] == "1.25"
+    assert rows[1]["gradient_clip_fraction"] == "0.1"
+    assert HISTORY_FIELDS == (
+        *BASE_HISTORY_FIELDS,
+        *OPTIONAL_HISTORY_FIELDS,
+    )
+
+
+# 缺失基础指标或悄悄加入未知列都会破坏聚合契约，应在写盘前失败。
+@pytest.mark.parametrize(
+    ("record_update", "removed_field", "message"),
+    [
+        ({}, "val_loss", "missing required fields: val_loss"),
+        ({"mystery_metric": 1.0}, None, "unknown fields: mystery_metric"),
+    ],
+)
+def test_save_history_csv_rejects_invalid_row_schema(
+    tmp_path: Path,
+    record_update,
+    removed_field,
+    message,
+):
+    """Reject incomplete or undeclared history rows before creating a CSV."""
+
+    record = {
+        "epoch": 1,
+        "train_loss": 1.0,
+        "train_accuracy": 0.5,
+        "val_loss": 1.1,
+        "val_accuracy": 0.4,
+        "epoch_time_seconds": 2.0,
+        **record_update,
+    }
+    if removed_field is not None:
+        record.pop(removed_field)
+
+    output_path = tmp_path / "invalid_history.csv"
+    with pytest.raises(ValueError, match=message):
+        save_history_csv([record], output_path)
+
+    assert not output_path.exists()
 
 
 # 空 history 通常意味着训练尚未发生，不应生成误导性的日志文件。
@@ -252,13 +499,21 @@ def test_save_checkpoint_preserves_complete_training_state(tmp_path: Path):
     )
 
     assert set(checkpoint) == {
+        "format_version",
         "epoch",
         "model_state",
         "optimizer_state",
+        "scheduler_state",
+        "scaler_state",
         "best_val_accuracy",
         "history",
         "config",
+        "run_metadata",
     }
+    assert checkpoint["format_version"] == 2
+    assert checkpoint["scheduler_state"] is None
+    assert checkpoint["scaler_state"] is None
+    assert checkpoint["run_metadata"] is None
     assert checkpoint["epoch"] == 1
     assert checkpoint["best_val_accuracy"] == pytest.approx(0.75)
     assert checkpoint["history"] == history
@@ -362,10 +617,14 @@ def test_load_checkpoint_restores_state_and_can_continue_training(
     )
 
     assert resume_state == {
+        "format_version": 2,
         "epoch": 1,
         "best_val_accuracy": 0.75,
         "history": history,
         "config": config,
+        "scheduler_state": None,
+        "scaler_state": None,
+        "run_metadata": None,
     }
     assert not torch.equal(target_weight_before, target_model.weight)
 
@@ -404,3 +663,129 @@ def test_load_checkpoint_restores_state_and_can_continue_training(
         continued_weight_before,
         target_model.weight,
     )
+
+
+# 历史 checkpoint 没有版本号和扩展状态，仍应按 v1 恢复基础训练状态。
+def test_load_checkpoint_normalizes_legacy_v1_format(tmp_path: Path):
+    """Load a manually constructed legacy checkpoint without v2 fields."""
+
+    model = nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    legacy_checkpoint = {
+        "epoch": 3,
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict(),
+        "best_val_accuracy": 0.6,
+        "history": [{"epoch": 3}],
+        "config": {"seed": 42},
+    }
+    checkpoint_path = tmp_path / "legacy.pt"
+    torch.save(legacy_checkpoint, checkpoint_path)
+
+    target_model = nn.Linear(2, 2)
+    target_optimizer = torch.optim.AdamW(
+        target_model.parameters(),
+        lr=9e-3,
+    )
+    restored = load_checkpoint(
+        checkpoint_path,
+        target_model,
+        target_optimizer,
+        torch.device("cpu"),
+    )
+
+    assert restored["format_version"] == 1
+    assert restored["scheduler_state"] is None
+    assert restored["scaler_state"] is None
+    assert restored["run_metadata"] is None
+    assert restored["epoch"] == 3
+
+
+# v2 应完整保存未来 scheduler/scaler 状态，且不能在恢复时静默丢弃。
+def test_checkpoint_round_trips_optional_training_states(tmp_path: Path):
+    """Persist and restore non-empty scheduler and scaler state dictionaries."""
+
+    model = nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scheduler = StateProbe(7)
+    scaler = StateProbe(11)
+    config = {
+        "format_version": 2,
+        "runtime": {
+            "metadata": {"git_commit": "abc123"},
+        },
+    }
+    checkpoint_path = tmp_path / "current.pt"
+
+    save_checkpoint(
+        path=checkpoint_path,
+        epoch=2,
+        model=model,
+        optimizer=optimizer,
+        best_val_accuracy=0.8,
+        history=[{"epoch": 2}],
+        config=config,
+        scheduler=scheduler,
+        scaler=scaler,
+    )
+
+    target_model = nn.Linear(2, 2)
+    target_optimizer = torch.optim.AdamW(target_model.parameters(), lr=9e-3)
+    target_scheduler = StateProbe(0)
+    target_scaler = StateProbe(0)
+    restored = load_checkpoint(
+        checkpoint_path,
+        target_model,
+        target_optimizer,
+        torch.device("cpu"),
+        scheduler=target_scheduler,
+        scaler=target_scaler,
+    )
+
+    assert target_scheduler.value == 7
+    assert target_scaler.value == 11
+    assert restored["scheduler_state"] == {"value": 7}
+    assert restored["scaler_state"] == {"value": 11}
+    assert restored["run_metadata"] == {"git_commit": "abc123"}
+
+    with pytest.raises(ValueError, match="no scheduler"):
+        load_checkpoint(
+            checkpoint_path,
+            nn.Linear(2, 2),
+            torch.optim.AdamW(nn.Linear(2, 2).parameters(), lr=1e-3),
+            torch.device("cpu"),
+        )
+
+
+# 启用 scheduler/scaler 后不能从缺失对应状态的 checkpoint 静默重启曲线。
+def test_load_checkpoint_rejects_enabled_component_without_saved_state(
+    tmp_path: Path,
+):
+    """Reject a resume that would restart newly enabled stateful components."""
+
+    model = nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    checkpoint_path = tmp_path / "fixed_lr.pt"
+    save_checkpoint(
+        path=checkpoint_path,
+        epoch=1,
+        model=model,
+        optimizer=optimizer,
+        best_val_accuracy=0.5,
+        history=[{"epoch": 1}],
+        config={"seed": 42},
+    )
+
+    target_model = nn.Linear(2, 2)
+    target_optimizer = torch.optim.AdamW(
+        target_model.parameters(),
+        lr=1e-3,
+    )
+    with pytest.raises(ValueError, match="does not contain scheduler_state"):
+        load_checkpoint(
+            checkpoint_path,
+            target_model,
+            target_optimizer,
+            torch.device("cpu"),
+            scheduler=StateProbe(0),
+        )

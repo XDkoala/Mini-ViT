@@ -1,21 +1,32 @@
 """Command-line entry point for configured image-classifier training."""
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
 
 import torch
 from torch import nn
 from torch.optim import Optimizer
 
+from src.amp import build_amp_runtime
 from src.models.minivit import MiniViT
 from src.models.cnn import SimpleCNN
-from src.config import load_config, save_config
+from src.config import (
+    CURRENT_FORMAT_VERSION,
+    load_config,
+    resolve_random_seeds,
+    save_config,
+)
 from src.data import build_dataloaders
 from src.engine import fit
+from src.gradients import validate_gradient_clip_norm
+from src.schedulers import WarmupCosineScheduler
 from src.utils import (
+    collect_run_metadata,
     load_checkpoint,
     resolve_device,
     set_seed,
+    write_run_status,
 )
 
 # Stage 5
@@ -139,6 +150,79 @@ def build_optimizer(
     )
 
 
+def build_scheduler(
+    optimizer: Optimizer,
+    training_config: dict[str, object],
+    train_loader: object,
+    max_train_batches: int | None,
+) -> WarmupCosineScheduler | None:
+    """Build an optional update-based learning-rate scheduler."""
+
+    scheduler_config = training_config.get("scheduler")
+    if scheduler_config is None:
+        return None
+    if not isinstance(scheduler_config, Mapping):
+        raise ValueError("training.scheduler must be a mapping.")
+
+    scheduler_name = str(
+        scheduler_config.get("name", "")
+    ).strip().lower()
+    if scheduler_name == "none":
+        return None
+    if scheduler_name != "warmup_cosine":
+        raise ValueError(
+            "training.scheduler.name must be one of: "
+            "none, warmup_cosine."
+        )
+
+    required_keys = {
+        "warmup_epochs",
+        "start_factor",
+        "min_factor",
+    }
+    missing_keys = required_keys - scheduler_config.keys()
+    if missing_keys:
+        names = ", ".join(sorted(missing_keys))
+        raise ValueError(f"Missing training.scheduler keys: {names}")
+
+    epochs = training_config["epochs"]
+    warmup_epochs = scheduler_config["warmup_epochs"]
+    if isinstance(epochs, bool) or not isinstance(epochs, int) or epochs <= 0:
+        raise ValueError("training.epochs must be a positive integer.")
+    if (
+        isinstance(warmup_epochs, bool)
+        or not isinstance(warmup_epochs, int)
+        or not 0 <= warmup_epochs < epochs
+    ):
+        raise ValueError(
+            "training.scheduler.warmup_epochs must be an integer "
+            "in the range [0, training.epochs)."
+        )
+
+    try:
+        available_steps = len(train_loader)
+    except TypeError as error:
+        raise ValueError("train_loader must define its batch count.") from error
+    if available_steps <= 0:
+        raise ValueError("train_loader must contain at least one batch.")
+
+    steps_per_epoch = (
+        available_steps
+        if max_train_batches is None
+        else min(available_steps, max_train_batches)
+    )
+    total_steps = epochs * steps_per_epoch
+    warmup_steps = warmup_epochs * steps_per_epoch
+
+    return WarmupCosineScheduler(
+        optimizer,
+        total_steps=total_steps,
+        warmup_steps=warmup_steps,
+        start_factor=scheduler_config["start_factor"],
+        min_factor=scheduler_config["min_factor"],
+    )
+
+
 def resolve_project_path(
     path_value: object,
 ) -> Path:
@@ -193,11 +277,18 @@ def main(
             "--output-dir to protect formal results."
         )
 
-    seed = int(config["seed"])
-    set_seed(seed)
+    split_seed, train_seed = resolve_random_seeds(config)
+
+    # train_seed 控制模型初始化、数据增强等训练随机过程；
+    # split_seed 只在下方交给数据层决定训练集/验证集成员。
+    set_seed(train_seed)
 
     device = resolve_device(
         str(config["device"])
+    )
+    amp_runtime = build_amp_runtime(
+        training_config.get("amp", False),
+        device,
     )
 
     data_dir = resolve_project_path(
@@ -213,84 +304,151 @@ def main(
         experiment_config["output_dir"]
     )
 
+    is_smoke_test = args.max_batches is not None
+
+    # 输入 YAML 可以是旧格式；本次新生成的有效配置属于当前产物格式。
+    config["format_version"] = CURRENT_FORMAT_VERSION
     config["runtime"] = {
-        "is_smoke_test": args.max_batches is not None,
+        "is_smoke_test": is_smoke_test,
         "max_train_batches": args.max_batches,
         "max_val_batches": args.max_batches,
+        "amp": amp_runtime.to_metadata(),
+        "metadata": collect_run_metadata(
+            project_root=PROJECT_ROOT,
+            device=device,
+            split_seed=split_seed,
+            train_seed=train_seed,
+            is_smoke_test=is_smoke_test,
+        ),
     }
 
-    train_loader, val_loader, _, _ = build_dataloaders(
-        data_dir=data_dir,
-        batch_size=int(data_config["batch_size"]),
-        num_workers=int(data_config["num_workers"]),
-        seed=seed,
-        augmentation=str(
-            data_config.get("augmentation", "basic")
-        ),
+    run_metadata = config["runtime"]["metadata"]
+    status_path = output_dir / "run_status.json"
+    target_epochs = int(training_config["epochs"])
+    gradient_clip_norm = validate_gradient_clip_norm(
+        training_config.get("gradient_clip_norm")
+    )
+    status_arguments = {
+        "path": status_path,
+        "experiment_id": str(experiment_config["name"]),
+        "is_smoke_test": is_smoke_test,
+        "git_commit": run_metadata.get("git_commit"),
+        "git_is_dirty": run_metadata.get("git_is_dirty"),
+        "target_epochs": target_epochs,
+    }
+
+    write_run_status(
+        **status_arguments,
+        status="running",
     )
 
-    # 创建模型、标准、优化器
-    model = build_model(
-        model_config=model_config,
-        device=device,
-    )
+    if amp_runtime.fallback_reason is not None:
+        print(f"AMP fallback: {amp_runtime.fallback_reason}")
 
-    criterion = nn.CrossEntropyLoss()
+    try:
+        train_loader, val_loader, _, _ = build_dataloaders(
+            data_dir=data_dir,
+            batch_size=int(data_config["batch_size"]),
+            num_workers=int(data_config["num_workers"]),
+            augmentation=str(
+                data_config.get("augmentation", "basic")
+            ),
+            split_seed=split_seed,
+            train_seed=train_seed,
+        )
 
-    optimizer = build_optimizer(
-        model=model,
-        training_config=training_config,
-    )
-
-    start_epoch = 1
-    initial_history = None
-    best_val_accuracy = float("-inf")
-
-    # 恢复数据
-    if args.resume is not None:
-        resume_state = load_checkpoint(
-            path=args.resume,
-            model=model,
-            optimizer=optimizer,
+        # 创建模型、标准、优化器
+        model = build_model(
+            model_config=model_config,
             device=device,
         )
 
-        start_epoch = int(
-            resume_state["epoch"]
-        ) + 1
-        initial_history = list(
-            resume_state["history"]
+        criterion = nn.CrossEntropyLoss()
+
+        optimizer = build_optimizer(
+            model=model,
+            training_config=training_config,
         )
-        best_val_accuracy = float(
-            resume_state["best_val_accuracy"]
+        scheduler = build_scheduler(
+            optimizer=optimizer,
+            training_config=training_config,
+            train_loader=train_loader,
+            max_train_batches=args.max_batches,
         )
 
-    # 在正式训练 fit() 前保存配置，可以知道如果失败运行采用了什么设置。
-    save_config(
-        config=config,
-        path=output_dir / "config.yaml",
-    )
+        start_epoch = 1
+        initial_history = None
+        best_val_accuracy = float("-inf")
 
-    # 正式训练
-    history = fit(
-        model=model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        criterion=criterion,
-        optimizer=optimizer,
-        device=device,
-        epochs=int(training_config["epochs"]),
-        output_dir=output_dir,
-        config=config,
-        start_epoch=start_epoch,
-        initial_history=initial_history,
-        best_val_accuracy=best_val_accuracy,
-        max_train_batches=args.max_batches,
-        max_val_batches=args.max_batches,
-        verbose=True,
-    )
+        # 恢复数据
+        if args.resume is not None:
+            resume_state = load_checkpoint(
+                path=args.resume,
+                model=model,
+                optimizer=optimizer,
+                device=device,
+                scheduler=scheduler,
+                scaler=amp_runtime.scaler,
+            )
+
+            start_epoch = int(
+                resume_state["epoch"]
+            ) + 1
+            initial_history = list(
+                resume_state["history"]
+            )
+            best_val_accuracy = float(
+                resume_state["best_val_accuracy"]
+            )
+
+        # 在正式训练 fit() 前保存配置，可以知道如果失败运行采用了什么设置。
+        save_config(
+            config=config,
+            path=output_dir / "config.yaml",
+        )
+
+        # 正式训练
+        history = fit(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            device=device,
+            epochs=target_epochs,
+            output_dir=output_dir,
+            config=config,
+            start_epoch=start_epoch,
+            initial_history=initial_history,
+            best_val_accuracy=best_val_accuracy,
+            max_train_batches=args.max_batches,
+            max_val_batches=args.max_batches,
+            verbose=True,
+            scheduler=scheduler,
+            gradient_clip_norm=gradient_clip_norm,
+            amp_runtime=amp_runtime,
+        )
+    except BaseException as error:
+        try:
+            write_run_status(
+                **status_arguments,
+                status="failed",
+                error_type=type(error).__name__,
+                error_message=str(error),
+            )
+        except Exception as status_error:
+            error.add_note(
+                "Additionally failed to persist run_status.json: "
+                f"{status_error}"
+            )
+        raise
 
     final_record = history[-1]
+    write_run_status(
+        **status_arguments,
+        status="completed",
+        completed_epochs=int(final_record["epoch"]),
+    )
 
     print(
         f"Training finished on {device}. "

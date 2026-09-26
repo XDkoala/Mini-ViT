@@ -162,6 +162,7 @@ Mini-ViT/
 │       └── no_augmentation.yaml
 ├── notes/
 │   ├── BASIC_PROJECT_WORKFLOW.md
+│   ├── ADVANCED_PROJECT_WORKFLOW.md
 │   ├── EXPERIMENT_RESULTS.md
 │   └── STAGE_0_NOTES.md ... STAGE_9_NOTES.md
 ├── src/
@@ -443,6 +444,8 @@ python -m pytest tests/test_visualization.py -q
 ## 学习笔记
 
 - [基础项目工作流](notes/BASIC_PROJECT_WORKFLOW.md)
+- [进阶项目工作流（阶段 10–18）](notes/ADVANCED_PROJECT_WORKFLOW.md)
+- [阶段 10：进阶实验协议与基础设施](notes/STAGE_10_NOTES.md)
 - [阶段 0：环境与项目骨架](notes/STAGE_0_NOTES.md)
 - [阶段 1：CIFAR-10 数据管线](notes/STAGE_1_NOTES.md)
 - [阶段 2：MiniViT 基础零件](notes/STAGE_2_NOTES.md)

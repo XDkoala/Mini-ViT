@@ -11,15 +11,18 @@ from torch import nn
 import scripts.evaluate as evaluate_script
 
 
-def make_checkpoint_config() -> dict[str, object]:
+def make_checkpoint_config(
+    *,
+    split_seed: int | None = None,
+    train_seed: int | None = None,
+) -> dict[str, object]:
     """Return a complete lightweight checkpoint configuration."""
 
-    return {
+    config: dict[str, object] = {
         "experiment": {
             "name": "evaluation_test",
             "output_dir": "outputs/evaluation_test",
         },
-        "seed": 42,
         "device": "auto",
         "data": {
             "data_dir": "data",
@@ -34,6 +37,18 @@ def make_checkpoint_config() -> dict[str, object]:
             "epochs": 1,
         },
     }
+
+    if split_seed is None and train_seed is None:
+        config["seed"] = 42
+    elif split_seed is not None and train_seed is not None:
+        config["randomness"] = {
+            "split_seed": split_seed,
+            "train_seed": train_seed,
+        }
+    else:
+        raise ValueError("split_seed and train_seed must be provided together.")
+
+    return config
 
 
 # 命令行必须接收 best checkpoint，并正确解析可选 smoke 参数。
@@ -93,6 +108,34 @@ def test_load_evaluation_checkpoint_validates_required_keys(tmp_path: Path):
         )
 
 
+# v2 checkpoint 必须包含其声明的扩展字段，未知未来版本也不能猜测读取。
+def test_load_evaluation_checkpoint_validates_versioned_fields(tmp_path: Path):
+    """Reject incomplete current checkpoints and unsupported future formats."""
+
+    checkpoint_path = tmp_path / "best.pt"
+    base = {
+        "epoch": 1,
+        "model_state": {},
+        "best_val_accuracy": 0.5,
+        "history": [],
+        "config": make_checkpoint_config(),
+    }
+
+    torch.save({**base, "format_version": 2}, checkpoint_path)
+    with pytest.raises(ValueError, match="scheduler_state"):
+        evaluate_script.load_evaluation_checkpoint(
+            checkpoint_path,
+            torch.device("cpu"),
+        )
+
+    torch.save({**base, "format_version": 3}, checkpoint_path)
+    with pytest.raises(ValueError, match="Unsupported format_version"):
+        evaluate_script.load_evaluation_checkpoint(
+            checkpoint_path,
+            torch.device("cpu"),
+        )
+
+
 # 类别名称扩充必须保留数值字段，并主动拒绝越界标签。
 def test_add_class_names_maps_labels_and_rejects_invalid_values():
     """Map numeric labels to names while validating class boundaries."""
@@ -121,17 +164,34 @@ def test_add_class_names_maps_labels_and_rejects_invalid_values():
         evaluate_script.add_class_names(records, ["cat", "dog"])
 
 
-# 主入口测试隔离真实数据和模型，只检查配置来源、组装与文件格式。
+# 主入口应兼容旧 checkpoint 和解耦 seed 的新 checkpoint。
+@pytest.mark.parametrize(
+    ("seed_pair", "expected_split_seed", "expected_train_seed"),
+    [
+        (None, 42, 42),
+        ((17, 29), 17, 29),
+    ],
+)
 def test_main_uses_checkpoint_config_and_writes_evaluation_files(
     tmp_path: Path,
     monkeypatch,
+    seed_pair: tuple[int, int] | None,
+    expected_split_seed: int,
+    expected_train_seed: int,
 ):
     """Evaluate from embedded config and persist JSON and CSV artifacts."""
 
     checkpoint_path = tmp_path / "best.pt"
     checkpoint_path.touch()
     output_dir = tmp_path / "evaluation"
-    config = make_checkpoint_config()
+    config = (
+        make_checkpoint_config()
+        if seed_pair is None
+        else make_checkpoint_config(
+            split_seed=seed_pair[0],
+            train_seed=seed_pair[1],
+        )
+    )
     model = nn.Linear(1, 2)
     checkpoint = {
         "epoch": 7,
@@ -212,9 +272,11 @@ def test_main_uses_checkpoint_config_and_writes_evaluation_files(
         str(output_dir),
     ])
 
-    assert calls["seed"] == 42
+    assert calls["seed"] == expected_train_seed
     assert calls["data"]["batch_size"] == 8
     assert calls["data"]["augmentation"] == "basic"
+    assert calls["data"]["split_seed"] == expected_split_seed
+    assert calls["data"]["train_seed"] == expected_train_seed
     assert calls["model"]["model_config"] is config["model"]
     assert calls["evaluation"]["loader"] == "test"
     assert calls["evaluation"]["max_batches"] is None

@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from src.config import load_config, save_config
+from src.config import (
+    CURRENT_FORMAT_VERSION,
+    load_config,
+    resolve_format_version,
+    resolve_random_seeds,
+    save_config,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +45,7 @@ def test_load_config_reads_minivit_baseline():
     assert training["optimizer"] == "adamw"
     assert training["learning_rate"] == pytest.approx(0.0003)
     assert isinstance(training["learning_rate"], float)
+    assert resolve_random_seeds(config) == (42, 42)
 
 
 # CNN 正式配置应复用相同实验协议，并仅替换模型结构和输出目录。
@@ -236,3 +243,159 @@ def test_save_config_round_trips_effective_configuration(tmp_path: Path):
     assert output_path.is_file()
     assert load_config(output_path) == config
     assert "阶段五冒烟" in output_path.read_text(encoding="utf-8")
+
+
+def make_minimal_config() -> dict[str, object]:
+    """Create the non-randomness portion shared by schema tests."""
+
+    return {
+        "experiment": {},
+        "device": "cpu",
+        "data": {},
+        "model": {},
+        "training": {},
+    }
+
+
+# v2 配置必须分别保留数据划分种子和训练随机种子。
+def test_load_config_accepts_v2_randomness_without_mutating_it(
+    tmp_path: Path,
+):
+    """Load and resolve explicit split/training seeds."""
+
+    config_path = tmp_path / "advanced.yaml"
+    config_path.write_text(
+        """
+experiment: {}
+device: cpu
+data: {}
+model: {}
+training: {}
+randomness:
+  split_seed: 42
+  train_seed: 123
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config["randomness"] == {
+        "split_seed": 42,
+        "train_seed": 123,
+    }
+    assert "seed" not in config
+    assert resolve_random_seeds(config) == (42, 123)
+
+
+# 两套 schema 同时存在时没有可靠的优先级，必须主动拒绝。
+def test_resolve_random_seeds_rejects_ambiguous_or_missing_schema():
+    """Require exactly one legacy or advanced randomness schema."""
+
+    base = make_minimal_config()
+
+    with pytest.raises(ValueError, match="not both"):
+        resolve_random_seeds({
+            **base,
+            "seed": 42,
+            "randomness": {
+                "split_seed": 42,
+                "train_seed": 123,
+            },
+        })
+
+    with pytest.raises(ValueError, match="either 'seed' or 'randomness'"):
+        resolve_random_seeds(base)
+
+
+# v2 不允许缺省任一 seed，否则程序会再次产生隐式耦合。
+@pytest.mark.parametrize(
+    ("randomness", "missing_name"),
+    [
+        ({"train_seed": 123}, "split_seed"),
+        ({"split_seed": 42}, "train_seed"),
+    ],
+)
+def test_resolve_random_seeds_requires_both_v2_fields(
+    randomness,
+    missing_name,
+):
+    """Reject incomplete version 2 randomness mappings."""
+
+    with pytest.raises(ValueError, match=missing_name):
+        resolve_random_seeds({
+            **make_minimal_config(),
+            "randomness": randomness,
+        })
+
+
+# bool、浮点数、负数与超过 PyTorch 支持范围的值都应尽早报错。
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("seed", True),
+        ("seed", 1.5),
+        ("randomness.split_seed", -1),
+        ("randomness.train_seed", 2**32),
+    ],
+)
+def test_resolve_random_seeds_rejects_invalid_values(field, value):
+    """Validate seed type and the unsigned 32-bit range."""
+
+    if field == "seed":
+        config = {
+            **make_minimal_config(),
+            "seed": value,
+        }
+    else:
+        config = {
+            **make_minimal_config(),
+            "randomness": {
+                "split_seed": 42,
+                "train_seed": 123,
+            },
+        }
+        section, key = field.split(".")
+        config[section][key] = value
+
+    with pytest.raises(ValueError, match=field):
+        resolve_random_seeds(config)
+
+
+def test_load_config_rejects_non_mapping_randomness(tmp_path: Path):
+    """Reject a scalar advanced randomness section."""
+
+    config_path = tmp_path / "invalid_randomness.yaml"
+    config_path.write_text(
+        """
+experiment: {}
+device: cpu
+data: {}
+model: {}
+training: {}
+randomness: 42
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="'randomness'.*mapping"):
+        load_config(config_path)
+
+
+# 没有版本字段的历史配置按 v1 读取；新产物显式标记当前版本。
+def test_resolve_format_version_supports_legacy_and_current_configs():
+    """Default missing versions to v1 and accept the current version."""
+
+    assert resolve_format_version({}) == 1
+    assert resolve_format_version({
+        "format_version": CURRENT_FORMAT_VERSION,
+    }) == CURRENT_FORMAT_VERSION
+
+
+# bool 虽是 int 子类但不应被当作版本号，未知版本也不能猜测解析。
+@pytest.mark.parametrize("version", [True, "2", 0, 3])
+def test_resolve_format_version_rejects_invalid_or_unknown_values(version):
+    """Reject malformed and unsupported artifact format versions."""
+
+    with pytest.raises(ValueError, match="format_version"):
+        resolve_format_version({"format_version": version})

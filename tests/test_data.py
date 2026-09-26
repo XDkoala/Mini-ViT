@@ -223,3 +223,84 @@ def test_build_transforms_rejects_unknown_augmentation():
         match="basic, none",
     ):
         build_transforms("strong")
+
+
+# 固定 split_seed 时，改变 train_seed 只能改变训练顺序，不能改变数据成员。
+def test_explicit_seeds_decouple_split_membership_from_training_order():
+    """Keep subset membership fixed while varying the random sampler."""
+
+    loaders_a = build_dataloaders(
+        data_dir=DATA_DIR,
+        batch_size=128,
+        num_workers=0,
+        split_seed=42,
+        train_seed=123,
+    )
+    loaders_b = build_dataloaders(
+        data_dir=DATA_DIR,
+        batch_size=128,
+        num_workers=0,
+        split_seed=42,
+        train_seed=2026,
+    )
+
+    train_a, val_a, test_a, _ = loaders_a
+    train_b, val_b, test_b, _ = loaders_b
+
+    assert train_a.dataset.indices == train_b.dataset.indices
+    assert val_a.dataset.indices == val_b.dataset.indices
+    assert len(test_a.dataset) == len(test_b.dataset) == 10_000
+
+    order_a = list(iter(train_a.sampler))
+    order_b = list(iter(train_b.sampler))
+
+    assert order_a != order_b
+    assert sorted(order_a) == sorted(order_b) == list(range(45_000))
+
+
+# 相同 train_seed 应给出相同首轮采样顺序，保证训练顺序可复现。
+def test_explicit_train_seed_reproduces_sampler_order():
+    """Reproduce the RandomSampler order with an equal training seed."""
+
+    loader_a, _, _, _ = build_dataloaders(
+        data_dir=DATA_DIR,
+        batch_size=128,
+        num_workers=0,
+        split_seed=42,
+        train_seed=123,
+    )
+    loader_b, _, _, _ = build_dataloaders(
+        data_dir=DATA_DIR,
+        batch_size=128,
+        num_workers=0,
+        split_seed=42,
+        train_seed=123,
+    )
+
+    assert list(iter(loader_a.sampler)) == list(iter(loader_b.sampler))
+
+
+# 兼容参数与显式参数不能混用，显式接口也必须同时提供两个 seed。
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {
+            "seed": 42,
+            "split_seed": 42,
+            "train_seed": 123,
+        },
+        {"split_seed": 42},
+        {"train_seed": 123},
+        {},
+    ],
+)
+def test_dataloaders_reject_ambiguous_or_incomplete_seed_arguments(kwargs):
+    """Require one complete legacy or explicit seed schema."""
+
+    with pytest.raises(ValueError):
+        build_dataloaders(
+            data_dir=DATA_DIR,
+            batch_size=128,
+            num_workers=0,
+            **kwargs,
+        )

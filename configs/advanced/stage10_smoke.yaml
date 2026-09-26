@@ -1,0 +1,36 @@
+format_version: 2
+
+experiment:
+  name: stage10_protocol_smoke
+  output_dir: outputs/advanced/smoke/stage10_protocol/split_42__train_123
+
+randomness:
+  split_seed: 42
+  train_seed: 123
+
+device: auto
+
+data:
+  data_dir: data
+  batch_size: 32
+  num_workers: 0
+  augmentation: basic
+
+# 使用较小但结构完整的 MiniViT，smoke 只验证基础设施而非模型精度。
+model:
+  name: minivit
+  image_size: 32
+  in_channels: 3
+  num_classes: 10
+  patch_size: 4
+  embed_dim: 48
+  depth: 2
+  num_heads: 4
+  mlp_dim: 96
+  dropout: 0.1
+
+training:
+  epochs: 2
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.05

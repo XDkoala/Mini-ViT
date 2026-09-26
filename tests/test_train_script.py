@@ -10,22 +10,26 @@ from scripts.train import (
     DEFAULT_CONFIG_PATH,
     build_model,
     build_optimizer,
+    build_scheduler,
     parse_args,
 )
 from src.models.minivit import MiniViT
 from src.models.cnn import SimpleCNN
 
 
-def write_test_config(tmp_path: Path) -> Path:
+def write_test_config(
+    tmp_path: Path,
+    randomness_yaml: str = "seed: 42",
+) -> Path:
     """Write a complete lightweight configuration for entry-point tests."""
 
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
-        """
+        f"""
 experiment:
   name: isolated_test
   output_dir: outputs/isolated_test
-seed: 42
+{randomness_yaml}
 device: auto
 data:
   data_dir: data
@@ -65,6 +69,18 @@ def install_runtime_stubs(monkeypatch, calls: dict[str, object]) -> None:
         calls["device_name"] = name
         return torch.device("cpu")
 
+    def fake_collect_run_metadata(**kwargs):
+        calls["metadata_input"] = kwargs
+        return {
+            "fixture": "run_metadata",
+            "git_commit": "abc123",
+            "git_is_dirty": False,
+        }
+
+    def fake_write_run_status(**kwargs):
+        calls.setdefault("statuses", []).append(kwargs)
+        return kwargs
+
     monkeypatch.setattr(
         train_script,
         "set_seed",
@@ -74,6 +90,16 @@ def install_runtime_stubs(monkeypatch, calls: dict[str, object]) -> None:
         train_script,
         "resolve_device",
         fake_resolve_device,
+    )
+    monkeypatch.setattr(
+        train_script,
+        "collect_run_metadata",
+        fake_collect_run_metadata,
+    )
+    monkeypatch.setattr(
+        train_script,
+        "write_run_status",
+        fake_write_run_status,
     )
 
     def fake_build_dataloaders(**kwargs):
@@ -258,6 +284,103 @@ def test_build_optimizer_rejects_unknown_name():
         )
 
 
+# scheduler 的总步数必须使用实际执行的 batch 上限，而不是完整 loader 长度。
+def test_build_scheduler_uses_effective_optimizer_update_count():
+    """Convert epochs and bounded batches into exact warmup and total steps."""
+
+    model = torch.nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    training_config: dict[str, object] = {
+        "epochs": 4,
+        "scheduler": {
+            "name": "warmup_cosine",
+            "warmup_epochs": 1,
+            "start_factor": 0.1,
+            "min_factor": 0.05,
+        },
+    }
+
+    scheduler = build_scheduler(
+        optimizer=optimizer,
+        training_config=training_config,
+        train_loader=[None] * 10,
+        max_train_batches=3,
+    )
+
+    assert scheduler is not None
+    assert scheduler.total_steps == 12
+    assert scheduler.warmup_steps == 3
+    assert scheduler.get_current_lrs() == pytest.approx([3e-5])
+
+
+@pytest.mark.parametrize(
+    "scheduler_config",
+    [
+        None,
+        {"name": "none"},
+    ],
+)
+def test_build_scheduler_preserves_fixed_lr_when_disabled(scheduler_config):
+    """Keep legacy and explicit-none configurations on the fixed-LR path."""
+
+    model = torch.nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    training_config: dict[str, object] = {"epochs": 4}
+    if scheduler_config is not None:
+        training_config["scheduler"] = scheduler_config
+
+    scheduler = build_scheduler(
+        optimizer=optimizer,
+        training_config=training_config,
+        train_loader=object(),
+        max_train_batches=None,
+    )
+
+    assert scheduler is None
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(3e-4)
+
+
+@pytest.mark.parametrize(
+    ("scheduler_config", "message"),
+    [
+        ("cosine", "must be a mapping"),
+        ({"name": "mystery"}, "none, warmup_cosine"),
+        (
+            {"name": "warmup_cosine"},
+            "Missing training.scheduler keys",
+        ),
+        (
+            {
+                "name": "warmup_cosine",
+                "warmup_epochs": 4,
+                "start_factor": 0.1,
+                "min_factor": 0.05,
+            },
+            "warmup_epochs",
+        ),
+    ],
+)
+def test_build_scheduler_rejects_invalid_configuration(
+    scheduler_config,
+    message,
+):
+    """Reject ambiguous scheduler names, fields, and warmup duration."""
+
+    model = torch.nn.Linear(2, 2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+
+    with pytest.raises(ValueError, match=message):
+        build_scheduler(
+            optimizer=optimizer,
+            training_config={
+                "epochs": 4,
+                "scheduler": scheduler_config,
+            },
+            train_loader=[None] * 3,
+            max_train_batches=None,
+        )
+
+
 def test_resolve_project_path_handles_relative_and_absolute_paths(
     tmp_path: Path,
 ):
@@ -269,14 +392,32 @@ def test_resolve_project_path_handles_relative_and_absolute_paths(
     assert train_script.resolve_project_path(tmp_path) == tmp_path
 
 
-# main 应按固定顺序组装新训练，并把命令行 epoch 覆盖写入有效配置。
+# main 应兼容旧 seed 和解耦后的 randomness，并把两类 seed 传给正确位置。
+@pytest.mark.parametrize(
+    (
+        "randomness_yaml",
+        "expected_split_seed",
+        "expected_train_seed",
+    ),
+    [
+        ("seed: 42", 42, 42),
+        (
+            "randomness:\n  split_seed: 17\n  train_seed: 29",
+            17,
+            29,
+        ),
+    ],
+)
 def test_main_wires_fresh_training_without_real_data(
     tmp_path: Path,
     monkeypatch,
+    randomness_yaml: str,
+    expected_split_seed: int,
+    expected_train_seed: int,
 ):
     """Assemble a fresh run and forward effective configuration to fit."""
 
-    config_path = write_test_config(tmp_path)
+    config_path = write_test_config(tmp_path, randomness_yaml)
     calls: dict[str, object] = {}
     install_runtime_stubs(monkeypatch, calls)
 
@@ -305,14 +446,15 @@ def test_main_wires_fresh_training_without_real_data(
     ])
 
     assert history[-1]["epoch"] == 2
-    assert calls["seed"] == 42
+    assert calls["seed"] == expected_train_seed
     assert calls["device_name"] == "auto"
     assert calls["data"] == {
         "data_dir": train_script.PROJECT_ROOT / "data",
         "batch_size": 8,
         "num_workers": 0,
-        "seed": 42,
         "augmentation": "basic",
+        "split_seed": expected_split_seed,
+        "train_seed": expected_train_seed,
     }
 
     fit_call = calls["fit"]
@@ -323,14 +465,36 @@ def test_main_wires_fresh_training_without_real_data(
     assert fit_call["max_train_batches"] is None
     assert fit_call["max_val_batches"] is None
     assert fit_call["verbose"] is True
+    assert fit_call["gradient_clip_norm"] is None
     assert fit_call["output_dir"] == (
         train_script.PROJECT_ROOT / "outputs" / "isolated_test"
     )
     assert fit_call["config"]["training"]["epochs"] == 2
+    assert fit_call["config"]["format_version"] == 2
     assert fit_call["config"]["runtime"] == {
         "is_smoke_test": False,
         "max_train_batches": None,
         "max_val_batches": None,
+        "amp": {
+            "requested": False,
+            "enabled": False,
+            "device_type": "cpu",
+            "dtype": None,
+            "uses_grad_scaler": False,
+            "fallback_reason": None,
+        },
+        "metadata": {
+            "fixture": "run_metadata",
+            "git_commit": "abc123",
+            "git_is_dirty": False,
+        },
+    }
+    assert calls["metadata_input"] == {
+        "project_root": train_script.PROJECT_ROOT,
+        "device": torch.device("cpu"),
+        "split_seed": expected_split_seed,
+        "train_seed": expected_train_seed,
+        "is_smoke_test": False,
     }
     assert calls["save_config"]["path"] == (
         train_script.PROJECT_ROOT
@@ -339,7 +503,89 @@ def test_main_wires_fresh_training_without_real_data(
         / "config.yaml"
     )
     assert calls["save_config"]["config"] is fit_call["config"]
+    assert fit_call["amp_runtime"].enabled is False
     assert calls["order"] == ["save_config", "fit"]
+    assert [item["status"] for item in calls["statuses"]] == [
+        "running",
+        "completed",
+    ]
+    assert calls["statuses"][-1]["completed_epochs"] == 2
+
+
+# 调度器工厂创建出的对象，必须原样传入 fit，不能只创建却未参与训练。
+def test_main_forwards_built_scheduler_to_fit(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Forward the scheduler built by the entry point into the training loop."""
+
+    config_path = write_test_config(tmp_path)
+    calls: dict[str, object] = {}
+    install_runtime_stubs(monkeypatch, calls)
+    scheduler = object()
+
+    def fake_build_scheduler(**kwargs):
+        calls["scheduler_factory"] = kwargs
+        return scheduler
+
+    def fake_fit(**kwargs):
+        calls["fit"] = kwargs
+        return [{
+            "epoch": 5,
+            "train_loss": 1.0,
+            "train_accuracy": 0.5,
+            "val_loss": 1.1,
+            "val_accuracy": 0.4,
+        }]
+
+    monkeypatch.setattr(
+        train_script,
+        "build_scheduler",
+        fake_build_scheduler,
+    )
+    monkeypatch.setattr(train_script, "fit", fake_fit)
+
+    train_script.main(["--config", str(config_path)])
+
+    assert calls["scheduler_factory"]["optimizer"] == "optimizer"
+    assert calls["scheduler_factory"]["train_loader"] == "train_loader"
+    assert calls["scheduler_factory"]["max_train_batches"] is None
+    assert calls["fit"]["scheduler"] is scheduler
+
+
+# YAML 中的裁剪阈值必须经过验证并传入正式训练循环。
+def test_main_forwards_enabled_gradient_clip_norm(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Normalize and forward an enabled global gradient clipping threshold."""
+
+    config_path = write_test_config(tmp_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "  weight_decay: 0.0\n",
+            "  weight_decay: 0.0\n  gradient_clip_norm: 1\n",
+        ),
+        encoding="utf-8",
+    )
+    calls: dict[str, object] = {}
+    install_runtime_stubs(monkeypatch, calls)
+
+    def fake_fit(**kwargs):
+        calls["fit"] = kwargs
+        return [{
+            "epoch": 5,
+            "train_loss": 1.0,
+            "train_accuracy": 0.5,
+            "val_loss": 1.1,
+            "val_accuracy": 0.4,
+        }]
+
+    monkeypatch.setattr(train_script, "fit", fake_fit)
+
+    train_script.main(["--config", str(config_path)])
+
+    assert calls["fit"]["gradient_clip_norm"] == 1.0
 
 
 # 受限运行若未指定独立目录，必须在任何运行时组件创建前失败。
@@ -420,7 +666,21 @@ def test_main_records_and_forwards_smoke_settings(
         "is_smoke_test": True,
         "max_train_batches": 2,
         "max_val_batches": 2,
+        "amp": {
+            "requested": False,
+            "enabled": False,
+            "device_type": "cpu",
+            "dtype": None,
+            "uses_grad_scaler": False,
+            "fallback_reason": None,
+        },
+        "metadata": {
+            "fixture": "run_metadata",
+            "git_commit": "abc123",
+            "git_is_dirty": False,
+        },
     }
+    assert calls["metadata_input"]["is_smoke_test"] is True
     assert calls["save_config"]["path"] == (
         train_script.PROJECT_ROOT
         / "outputs"
@@ -428,6 +688,8 @@ def test_main_records_and_forwards_smoke_settings(
         / "config.yaml"
     )
     assert calls["order"] == ["save_config", "fit"]
+    assert calls["statuses"][-1]["status"] == "completed"
+    assert calls["statuses"][-1]["is_smoke_test"] is True
 
 
 # resume 元数据必须原样传给 fit，使目标总轮数和历史记录连续。
@@ -495,6 +757,7 @@ def test_main_forwards_checkpoint_resume_state(
 
     assert history[-1]["epoch"] == 5
     assert calls["load_checkpoint"]["path"] == resume_path
+    assert calls["load_checkpoint"]["scaler"] is None
 
     fit_call = calls["fit"]
     assert fit_call["epochs"] == 5
@@ -507,3 +770,31 @@ def test_main_forwards_checkpoint_resume_state(
         "save_config",
         "fit",
     ]
+
+
+# 训练异常必须写入 failed 状态，同时把原异常继续抛给调用者。
+def test_main_records_failed_status_and_reraises_error(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Persist failure metadata without swallowing the training exception."""
+
+    config_path = write_test_config(tmp_path)
+    calls: dict[str, object] = {}
+    install_runtime_stubs(monkeypatch, calls)
+
+    def fail_fit(**kwargs):
+        raise RuntimeError("training exploded")
+
+    monkeypatch.setattr(train_script, "fit", fail_fit)
+
+    with pytest.raises(RuntimeError, match="training exploded"):
+        train_script.main(["--config", str(config_path)])
+
+    assert [item["status"] for item in calls["statuses"]] == [
+        "running",
+        "failed",
+    ]
+    failed = calls["statuses"][-1]
+    assert failed["error_type"] == "RuntimeError"
+    assert failed["error_message"] == "training exploded"

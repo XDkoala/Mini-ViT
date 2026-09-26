@@ -111,8 +111,9 @@ Mini ViT/
 ├── .gitignore
 ├── notes/
 │   ├── BASIC_PROJECT_WORKFLOW.md
+│   ├── ADVANCED_PROJECT_WORKFLOW.md
 │   ├── EXPERIMENT_RESULTS.md
-│   └── STAGE_0_NOTES.md ... STAGE_8_NOTES.md
+│   └── STAGE_0_NOTES.md ... STAGE_9_NOTES.md
 ├── configs/
 │   ├── minivit.yaml
 │   ├── cnn.yaml
@@ -1085,4 +1086,4 @@ README 是他人理解项目的入口，不要只写安装命令。
 
 阶段 0–9 的基础项目主线已经全部完成：代码、测试、正式实验、最终评估、图表、学习笔记和仓库 README 均已闭环。
 
-接下来没有必须继续执行的基础阶段。若继续研究，可从多随机种子、warmup + cosine scheduler、AMP、Mixup/CutMix、效率统计或新数据集迁移中选择一个方向，并建立新的实验阶段与独立验证协议。不要覆盖当前冻结结果，也不要使用测试集反复试错。
+基础阶段没有必须继续执行的任务。若进入进阶主线，应从 [ADVANCED_PROJECT_WORKFLOW.md](ADVANCED_PROJECT_WORKFLOW.md) 的阶段 10 开始，先建立新的实验协议，再依次研究优化、正则化、效率、鲁棒性和具身迁移。不要覆盖当前冻结结果，也不要使用测试集反复试错。
