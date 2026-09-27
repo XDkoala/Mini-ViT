@@ -6,7 +6,7 @@
 
 当前状态：进行中
 
-当前位置：R1 clean rerun 已验收并可正式聚合；下一步运行 R2
+当前位置：R2 已验收并可正式聚合；下一步运行 R3
 
 ## 进度
 
@@ -326,3 +326,22 @@ R1 > R2 > R3 > R0
 两次 R1 的每个 epoch 中，train/validation loss、train/validation accuracy、learning rate、gradient norm 与 clipping fraction 均逐项一致；差异仅来自耗时和显存等运行时记录。这说明固定数据划分、训练 seed 和确定的调用顺序在当前环境中实现了高度可复现的训练轨迹。
 
 R1 的 best val 为 83.52%，比复用的 R0 83.64% 低 0.12 pp。差距很小，先记录事实，不在 R2/R3 完成前下最终结论。
+
+## 22. R2：Mixup 正式结果
+
+R2 使用 `alpha=0.2` 完成 100 epochs，配置快照确认 Mixup 只作用于训练 batch，validation 仍使用原图和硬标签。运行基于 clean commit `6ba1005`，可进入正式聚合。
+
+| 项目 | 结果 |
+|---|---:|
+| status | completed |
+| completed epochs | 100 / 100 |
+| git dirty | false |
+| aggregation eligible | true |
+| best val accuracy | 84.56% |
+| best epoch | 96 |
+| final val accuracy | 83.72% |
+| last-5 val mean | 83.968% |
+| last-10 val mean | 84.050% |
+| total time | 27.45 min |
+
+R2 当前比 R0 的 best val 高 0.92 pp，比 R1 高 1.04 pp。最终 train accuracy 87.405% 是对软标签概率质量计算的 soft accuracy，定义与 R0/R1 的硬标签准确率不同，不能据此判断 Mixup 拟合更差或过拟合更少。最终比较等待 R3 完成后统一进行。
