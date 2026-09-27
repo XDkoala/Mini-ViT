@@ -6,7 +6,7 @@
 
 当前状态：进行中
 
-当前位置：6 组 screening 已完成并按预注册规则选定参数；正式实验配置已冻结，下一步运行 R1–R3
+当前位置：R1 clean rerun 已验收并可正式聚合；下一步运行 R2
 
 ## 进度
 
@@ -303,3 +303,26 @@ R1 > R2 > R3 > R0
 - 最不确定的比较：R2 与 R3 的相对表现。
 
 这一猜想背后的整体直觉是：R1 只软化监督目标，不破坏原始图像，可能在抑制过度自信的同时保留较完整的学习信号；R2/R3 会直接改变训练输入和标签，正则化作用可能更强，也更可能妨碍模型充分拟合。这里的机制解释只用于明确实验前判断，不作为结果成立的证据。
+
+## 21. R1：Label Smoothing 正式结果
+
+第一次 R1 虽完整运行 100 epochs，但启动时阶段 12 笔记与正式 YAML 尚未提交，因此状态记录为 `git_is_dirty=true`、`aggregation_eligible=false`。该结果保持原样，仅作为被协议排除的运行，不通过修改状态文件伪装成合格实验。
+
+提交冻结配置后，使用相同 seed 和相同参数写入新目录完成 clean rerun：
+
+| 项目 | 结果 |
+|---|---:|
+| status | completed |
+| completed epochs | 100 / 100 |
+| git commit | e3693f0 |
+| git dirty | false |
+| aggregation eligible | true |
+| best val accuracy | 83.52% |
+| best epoch | 95 |
+| final val accuracy | 83.02% |
+| last-5 val mean | 83.148% |
+| total time | 27.15 min |
+
+两次 R1 的每个 epoch 中，train/validation loss、train/validation accuracy、learning rate、gradient norm 与 clipping fraction 均逐项一致；差异仅来自耗时和显存等运行时记录。这说明固定数据划分、训练 seed 和确定的调用顺序在当前环境中实现了高度可复现的训练轨迹。
+
+R1 的 best val 为 83.52%，比复用的 R0 83.64% 低 0.12 pp。差距很小，先记录事实，不在 R2/R3 完成前下最终结论。
