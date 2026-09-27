@@ -14,7 +14,7 @@
 - [x] 预注册 6 类扰动 × 3 个 severity
 - [x] 实现 deterministic corruption dataset
 - [x] 测试标签、顺序、数量与 seed 可复现性
-- [ ] 生成样例网格并完成人工视觉验收
+- [x] 生成样例网格并完成人工视觉验收
 - [ ] 在 validation 上评估三个冻结模型
 - [ ] 报告每项 accuracy、clean drop、macro average 与 worst case
 - [ ] 冻结 corruption 协议后一次性评估 corrupted test
@@ -108,3 +108,9 @@ PIL / uint8 0–255 -> Tensor float32 [0,1] -> Normalize
 - clean wrapper 只执行 normalization。
 
 专项测试 32 passed，全量回归测试 383 passed。测试中的一次初始失败来自 FP32 两次运算末位舍入超过默认 `1e-8` 绝对容差；将契约设为 `atol=1e-7` 后通过，不涉及随机性或算法修复。
+
+## 8. 样例网格视觉验收
+
+`assets/advanced/stage15/corruption_grid.png` 使用固定 validation frog 样本展示 6 行 corruption，每行包含 clean 与 severity 1–3。
+
+视觉检查确认：brightness、contrast 与 noise 逐级增强；motion blur 呈水平方向线性拖影而非 Gaussian blur；occlusion 使用同一基础中心且面积随 `6²/10²/14²` 增大；translation 方向一致、位移距离增大并以黑色填充空白。severity 3 仍保留可辨认的类别语义，协议无需在查看模型结果前调整。
