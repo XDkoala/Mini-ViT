@@ -4,21 +4,21 @@
 
 开始日期：2026-09-27
 
-当前状态：进行中
+当前状态：已完成
 
-当前位置：实验矩阵与统计规则已冻结；下一步补跑 seed 123、2026
+当前位置：三 seed 统计与 advanced MiniViT 配方冻结均已完成
 
 ## 进度
 
 - [x] 确定进入多 seed 确认的候选
 - [x] 冻结 split seed、train seeds 与训练预算
 - [x] 创建四份新增训练配置
-- [ ] 完成 seed 123 的 R0/R3
-- [ ] 完成 seed 2026 的 R0/R3
-- [ ] 聚合原始值、mean 与 sample std
-- [ ] 计算 CutMix 相对 R0 的逐 seed 差值
-- [ ] 冻结 advanced MiniViT 最终配方与 checkpoint 清单
-- [ ] 阶段 13 总验收
+- [x] 完成 seed 123 的 R0/R3
+- [x] 完成 seed 2026 的 R0/R3
+- [x] 聚合原始值、mean 与 sample std
+- [x] 计算 CutMix 相对 R0 的逐 seed 差值
+- [x] 冻结 advanced MiniViT 最终配方与 checkpoint 清单
+- [x] 阶段 13 总验收
 
 ## 1. 为什么还要换 seed
 
@@ -63,3 +63,44 @@ sample_std = sqrt(sum((x_i - mean)^2) / (n - 1))
 ## 5. 数据隔离与冻结规则
 
 本阶段仍只使用 train/validation，不读取 CIFAR-10 test 结果进行选择。完成统计后，根据 validation mean、波动、计算成本和实现复杂度冻结 `advanced_minivit_final` 的完整配置、三个 seed 的 best checkpoint 与评估规则；阶段 18 才进行统一 clean test。
+
+## 6. 三 seed 正式结果
+
+六个正式运行均完成 100 epochs 且可追溯；阶段 13 新增四组均为 `git_is_dirty=false`、`aggregation_eligible=true`。结果如下：
+
+| 配方 | Train Seed | Best Val Acc | Best Epoch | 时间 |
+|---|---:|---:|---:|---:|
+| R0 | 42 | 83.64% | 93 | 23.61 min |
+| R0 | 123 | 84.06% | 95 | 26.55 min |
+| R0 | 2026 | 83.94% | 80 | 27.40 min |
+| R3 CutMix | 42 | 86.92% | 98 | 26.91 min |
+| R3 CutMix | 123 | 86.42% | 98 | 27.25 min |
+| R3 CutMix | 2026 | 87.14% | 94 | 36.61 min |
+
+汇总使用样本标准差：
+
+| 配方 | Best Val Acc | Best Epoch | 训练时间 |
+|---|---:|---:|---:|
+| R0 | 83.880 ± 0.216% | 89.333 ± 8.145 | 25.852 ± 1.988 min |
+| R3 CutMix | **86.827 ± 0.369%** | 96.667 ± 2.309 | 30.255 ± 5.508 min |
+
+CutMix seed 2026 的时间明显偏长，但模型、数据和预算没有变化，因此不能将该次系统耗时波动解释为 train seed 导致的固定计算成本。阶段 14 将在受控计时协议下单独测量效率。
+
+## 7. 配对提升
+
+| Train Seed | R3 - R0 |
+|---:|---:|
+| 42 | +3.28 pp |
+| 123 | +2.36 pp |
+| 2026 | +3.20 pp |
+| mean ± sample std | **+2.947 ± 0.510 pp** |
+
+三个差值方向全部为正，说明阶段 12 中 CutMix 的明显优势不是 seed 42 独有的偶然结果。三个 seed 仍不足以支持强显著性声明，但已提供一致的初步稳定性证据。
+
+## 8. 最终冻结
+
+阶段 13 根据 validation 冻结 `advanced_minivit_final`：MiniViT p4/d6、O3 优化栈、CUDA AMP、basic augmentation、CutMix alpha 0.5。模型参数量为 2,693,578。
+
+三个 train seed 的 best checkpoint、SHA-256、来源 commit、评估脚本版本与 test 隔离规则记录在 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。冻结后不再依据 test 修改配方；阶段 14–17 默认使用该配方，阶段 18 才统一进行 clean test。
+
+聚合器最终报告 `eligible=13, skipped=30`。阶段 13 没有意外排除项。至此，多 seed 原始值、统计量、配对差值、运行溯源和最终候选冻结全部闭环。

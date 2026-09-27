@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11 O0–O3 优化消融与 AMP 效率对照均已完成
+当前状态：阶段 11–13 已完成；advanced MiniViT 配方已在 test 前冻结
 
 ## 1. 记录规则
 
@@ -39,6 +39,13 @@
 | 11 | stage11_o3_warmup_cosine_clip_split42_train42 | 42 | 42 | 91 | 83.00% | 82.98% | 未使用 | c58bc61 | 数值最高，但只比 O2 高 0.08 pp；裁剪几乎持续触发 |
 | 11 | stage11_amp_efficiency_fp32_split42_train42 | 42 | 42 | 91 | 83.00% | 82.98% | 未使用 | 842555c | AMP 效率对照的 FP32 组 |
 | 11 | stage11_amp_efficiency_cuda_split42_train42 | 42 | 42 | 93 | 83.64% | 82.76% | 未使用 | 842555c | AMP 约 1.455× 加速，allocated 显存减少 26.47% |
+| 12 | stage12_r1_label_smoothing_005_split42_train42 | 42 | 42 | 95 | 83.52% | 83.02% | 未使用 | e3693f0 | Label Smoothing 0.05；与 R0 接近 |
+| 12 | stage12_r2_mixup_alpha02_split42_train42 | 42 | 42 | 96 | 84.56% | 83.72% | 未使用 | 6ba1005 | Mixup 0.2；相对 R0 提升 0.92 pp |
+| 12 | stage12_r3_cutmix_alpha05_split42_train42 | 42 | 42 | 98 | 86.92% | 86.64% | 未使用 | 5ae1a9f | CutMix 0.5；阶段 12 最佳 |
+| 13 | stage13_r0_o3_amp_split42_train123 | 42 | 123 | 95 | 84.06% | 83.48% | 未使用 | 2ef26ee | R0 多 seed 确认 |
+| 13 | stage13_r3_cutmix05_split42_train123 | 42 | 123 | 98 | 86.42% | 86.02% | 未使用 | 2ef26ee | CutMix 多 seed 确认 |
+| 13 | stage13_r0_o3_amp_split42_train2026 | 42 | 2026 | 80 | 83.94% | 83.70% | 未使用 | 2ef26ee | R0 多 seed 确认 |
+| 13 | stage13_r3_cutmix05_split42_train2026 | 42 | 2026 | 94 | 87.14% | 86.96% | 未使用 | 2ef26ee | CutMix 多 seed 确认 |
 
 ## 4. 阶段 10 基础设施验证
 
@@ -100,7 +107,23 @@ AMP 按主要时间指标获得约 `1.455×` 加速。两组全部数值有限�
 
 阶段 11 聚合结果为 `eligible=6, skipped=5`；5 个 skipped 全部是预期 smoke test。
 
-## 7. 后续更新要求
+## 7. 阶段 12：小数据正则化
+
+在统一的 O3+AMP 底座上，单 seed 正式结果为：R1 Label Smoothing 83.52%、R2 Mixup 84.56%、R3 CutMix 86.92%。R3 相对无高级正则化的 R0 提升 3.28 pp，是进入阶段 13 的唯一高级正则化候选。
+
+30-epoch screening 只用于各方法内部选择强度；其跨方法排序与 100-epoch 结果相反，不能把短跑绝对值用作不同正则化机制的最终排名。
+
+## 8. 阶段 13：多随机种子确认与冻结
+
+| 配方 | Seed 42 | Seed 123 | Seed 2026 | Mean ± Sample Std |
+|---|---:|---:|---:|---:|
+| R0 | 83.64% | 84.06% | 83.94% | 83.880 ± 0.216% |
+| R3 CutMix | 86.92% | 86.42% | 87.14% | **86.827 ± 0.369%** |
+| R3 - R0 | +3.28 pp | +2.36 pp | +3.20 pp | **+2.947 ± 0.510 pp** |
+
+三个 seed 的配对提升方向一致。基于 validation 均值与一致性，冻结 R3 CutMix 0.5 为 `advanced_minivit_final`；完整配方、checkpoint 哈希与评估约束见 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。冻结过程未使用新的 test 结果。
+
+## 9. 后续更新要求
 
 每组正式实验结束后：
 
