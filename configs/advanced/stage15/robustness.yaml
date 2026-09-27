@@ -1,0 +1,37 @@
+device: cuda
+corruption_seed: 1501
+
+data:
+  data_dir: data
+  download: false
+  split_seed: 42
+
+evaluation:
+  materialize_batch_size: 256
+  model_batch_size: 256
+
+corruptions:
+  brightness: [0.8, 0.6, 0.4]
+  contrast: [0.75, 0.50, 0.25]
+  gaussian_noise: [0.04, 0.08, 0.12]
+  motion_blur: [3, 5, 7]
+  occlusion: [6, 10, 14]
+  translation: [1, 2, 4]
+
+candidates:
+  - name: cnn_baseline
+    checkpoint: outputs/cnn_baseline/best.pt
+  - name: minivit_baseline
+    checkpoint: outputs/minivit_baseline/best.pt
+  - name: advanced_minivit_final
+    checkpoint: outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt
+
+visualization:
+  validation_position: 0
+  dpi: 160
+  output: assets/advanced/stage15/corruption_grid.png
+
+output:
+  conditions_csv: assets/advanced/stage15/robustness_conditions.csv
+  summary_csv: assets/advanced/stage15/robustness_summary.csv
+  raw_json: assets/advanced/stage15/robustness_raw.json
