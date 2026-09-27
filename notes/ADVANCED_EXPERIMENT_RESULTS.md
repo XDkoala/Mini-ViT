@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–14 已完成；advanced MiniViT 配方已冻结并完成效率基准
+当前状态：阶段 11–15 已完成；效率与相机扰动鲁棒性均已正式评估
 
 ## 1. 记录规则
 
@@ -135,7 +135,22 @@ AMP 按主要时间指标获得约 `1.455×` 加速。两组全部数值有限�
 
 advanced MiniViT 在不增加推理结构成本的情况下比基础 MiniViT 提升 5.08 pp，但 CNN 在当前小图像任务上仍同时具有更高准确率和更低成本。AMP 提高 batch-128 吞吐量并降低训练显存，却因固定调度开销使 batch-1 latency 变慢。完整协议、FP32/AMP p50/p95、推理/训练显存和模型文件拆分见 [STAGE_14_NOTES.md](STAGE_14_NOTES.md)。
 
-## 10. 后续更新要求
+## 10. 阶段 15：相机扰动与域偏移
+
+冻结协议包含 brightness、contrast、Gaussian noise、水平 motion blur、方形 occlusion 和 translation，各 3 个 severity。每个条件只生成一次并供三个模型共享；正式 test 在模型与扰动冻结后只运行一次。
+
+| Split | 模型 | Clean | 18 条件 Macro | 平均 Drop | Worst |
+|---|---|---:|---:|---:|---|
+| Validation | CNN | 89.58% | **69.75%** | 19.83 pp | 19.08%，noise S3 |
+| Validation | MiniViT baseline | 81.84% | 65.55% | **16.29 pp** | 27.28%，contrast S3 |
+| Validation | advanced MiniViT | 86.92% | 69.51% | 17.41 pp | **26.02%**，noise S3 |
+| Test | CNN | 88.28% | 68.77% | 19.51 pp | 18.81%，noise S3 |
+| Test | MiniViT baseline | 80.65% | 64.79% | **15.86 pp** | **26.77%**，contrast S3 |
+| Test | advanced MiniViT | 86.38% | **69.01%** | 17.37 pp | 25.80%，noise S3 |
+
+CNN 与 advanced MiniViT 的 corruption macro 接近但失效模式不同：CNN 在 brightness、contrast、blur、translation 上更强；advanced 的 CutMix 配方在 occlusion 上明显领先；基础 MiniViT 在 Gaussian noise 下反而最好。完整 114 条记录、severity 汇总、共享输入哈希和边界说明见 [STAGE_15_NOTES.md](STAGE_15_NOTES.md)。
+
+## 11. 后续更新要求
 
 每组正式实验结束后：
 

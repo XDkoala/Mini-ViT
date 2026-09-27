@@ -61,8 +61,8 @@ regularization:
 - 冻结源码 Git blob：`4ce2edd171f61e2c579774a2efb98430b737389f`；
 - validation 负责配方选择，test 不参与调参；
 - 阶段 14–17 不因 clean test 表现更改模型配方；
-- 阶段 15 先在 corrupted validation 上冻结扰动协议，之后才能生成 corrupted test；
-- 阶段 18 对三个冻结 best checkpoint 进行统一 clean test，并报告单次结果、mean 与 sample std；
+- 阶段 15 已在冻结扰动协议后完成 seed 42 checkpoint 的 clean/corrupted test；不得据此修改模型或 severity；
+- 阶段 18 复用 seed 42 clean test，并只补评估 seed 123/2026 的冻结 best checkpoint，最终报告三个 seed 的 mean 与 sample std；
 - test 结果无论好坏都必须完整保留，不能删除不利 seed 或另加 seed 改善均值。
 
 ## 4. 冻结统计
@@ -73,3 +73,25 @@ best validation accuracy：86.827 ± 0.369%
 ~~~
 
 以上 `±` 均为三个 train seed 的样本标准差，不表示置信区间或统计显著性。
+
+## 5. 阶段 15 冻结鲁棒性评估
+
+~~~text
+evaluation commit：2a4a3e316aea482e79ab40c1e298a723a4e8938e
+evaluator blob：2a389fc84518a283343417b37bac33a74cbefa1e
+corruption seed：1501
+advanced seed-42 clean test：86.38%
+advanced seed-42 corrupted macro：69.01%
+advanced seed-42 worst：25.80%，gaussian_noise severity 3
+~~~
+
+结果产物 SHA-256：
+
+| Artifact | SHA-256 |
+|---|---|
+| `assets/advanced/stage15/corruption_grid.png` | `5E88C3EBE697A4D80226F3CBBCD7551D1A7821EAE9057213E1427AE57872085E` |
+| `assets/advanced/stage15/robustness_conditions.csv` | `16868C7EDB5AD80462B390E0E94FAFC076D372E033C94A76152ADE3A718EE6F6` |
+| `assets/advanced/stage15/robustness_summary.csv` | `8022C5CCB8E93E0EA5E141CCE440E9F1020A738D40D4CFBA9B194984BAFD31C1` |
+| `assets/advanced/stage15/robustness_raw.json` | `85767358715E3545F3D7DEBC52D566A601752CBFB01268FC9304CEE6CEE7ED04` |
+
+这些结果是在 clean worktree 上生成的正式 frozen-test 产物。后续分析可以读取，但不得重跑后挑选更有利输出或覆盖原文件。

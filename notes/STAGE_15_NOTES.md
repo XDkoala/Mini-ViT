@@ -4,9 +4,9 @@
 
 开始日期：2026-09-27
 
-当前状态：进行中
+当前状态：已完成
 
-当前位置：deterministic corruption dataset 已实现并通过契约测试；下一步生成样例网格
+当前位置：validation/test 鲁棒性评估、结果冻结与阶段总验收均已完成
 
 ## 进度
 
@@ -15,10 +15,10 @@
 - [x] 实现 deterministic corruption dataset
 - [x] 测试标签、顺序、数量与 seed 可复现性
 - [x] 生成样例网格并完成人工视觉验收
-- [ ] 在 validation 上评估三个冻结模型
-- [ ] 报告每项 accuracy、clean drop、macro average 与 worst case
-- [ ] 冻结 corruption 协议后一次性评估 corrupted test
-- [ ] 阶段 15 总验收
+- [x] 在 validation 上评估三个冻结模型
+- [x] 报告每项 accuracy、clean drop、macro average 与 worst case
+- [x] 冻结 corruption 协议后一次性评估 corrupted test
+- [x] 阶段 15 总验收
 
 ## 1. 我们在测什么
 
@@ -114,3 +114,85 @@ PIL / uint8 0–255 -> Tensor float32 [0,1] -> Normalize
 `assets/advanced/stage15/corruption_grid.png` 使用固定 validation frog 样本展示 6 行 corruption，每行包含 clean 与 severity 1–3。
 
 视觉检查确认：brightness、contrast 与 noise 逐级增强；motion blur 呈水平方向线性拖影而非 Gaussian blur；occlusion 使用同一基础中心且面积随 `6²/10²/14²` 增大；translation 方向一致、位移距离增大并以黑色填充空白。severity 3 仍保留可辨认的类别语义，协议无需在查看模型结果前调整。
+
+## 9. 正式运行与完整性
+
+正式运行来自 clean commit `2a4a3e3`，使用 RTX 5060 Laptop GPU。每个 split/corruption/severity 只物化一次输入 Tensor，再供三个模型共享；结果中的输入 SHA-256 检查显示 38 个条件组均无模型间输入差异。
+
+~~~text
+2 splits × (1 clean + 18 corrupted) × 3 models = 114 rows
+~~~
+
+validation 使用固定 5,000 张训练集子集，test 使用官方 10,000 张测试图片。模型始终为 `eval + inference_mode`，没有反向传播或参数更新。test 在模型、corruption、severity、样例网格和评估代码全部冻结后只运行一次。
+
+## 10. Validation 结果
+
+### 10.1 总体
+
+| 模型 | Clean | 18 条件 Macro | 平均 Drop | Worst Case |
+|---|---:|---:|---:|---|
+| CNN baseline | **89.58%** | **69.75%** | 19.83 pp | 19.08%，noise S3 |
+| MiniViT baseline | 81.84% | 65.55% | **16.29 pp** | 27.28%，contrast S3 |
+| advanced MiniViT | 86.92% | 69.51% | 17.41 pp | **26.02%**，noise S3 |
+
+Macro accuracy 是 18 个条件等权平均。CNN 与 advanced MiniViT 只差 0.24 pp，不能把该微小差距解释为稳定排序。MiniViT baseline 的平均 drop 最小，但其 clean 起点也最低；较小 drop 不等于 corrupted absolute accuracy 更高，因此必须同时报告二者。
+
+### 10.2 按 corruption 平均
+
+| Corruption | CNN | MiniViT baseline | advanced MiniViT |
+|---|---:|---:|---:|
+| brightness | **80.03%** | 69.07% | 76.86% |
+| contrast | **70.79%** | 58.45% | 67.35% |
+| Gaussian noise | 41.71% | **55.36%** | 46.00% |
+| motion blur | **60.85%** | 54.24% | 57.00% |
+| occlusion | 76.53% | 75.65% | **83.75%** |
+| translation | **88.59%** | 80.50% | 86.09% |
+
+### 10.3 按 severity 平均
+
+| 模型 | S1 | S2 | S3 |
+|---|---:|---:|---:|
+| CNN baseline | **82.70%** | **71.58%** | 54.97% |
+| MiniViT baseline | 77.32% | 67.52% | 51.79% |
+| advanced MiniViT | 81.08% | 70.88% | **56.57%** |
+
+参数 severity 增强时三模型宏平均均下降。单个有限数据条件不要求严格单调；例如 test 中 MiniViT translation S2 比 S1 高 0.12 pp，已原样保留。
+
+## 11. Test 结果
+
+| 模型 | Clean | 18 条件 Macro | 平均 Drop | Worst Case |
+|---|---:|---:|---:|---|
+| CNN baseline | **88.28%** | 68.77% | 19.51 pp | 18.81%，noise S3 |
+| MiniViT baseline | 80.65% | 64.79% | **15.86 pp** | **26.77%**，contrast S3 |
+| advanced MiniViT | 86.38% | **69.01%** | 17.37 pp | 25.80%，noise S3 |
+
+Validation 与 test 的主要模式一致：CNN 与 advanced 的 macro 几乎相同；CNN 擅长 brightness、contrast、blur 和 translation；advanced 在 occlusion 上明显占优；基础 MiniViT 在 Gaussian noise 上最好。validation/test macro 的 CNN 与 advanced 排名相反但只差 0.24 pp，进一步说明二者整体平均应视为接近，而不是宣称其中一个全面更鲁棒。
+
+## 12. 机制分析
+
+### 12.1 CutMix 的收益具有针对性
+
+advanced MiniViT 的 validation occlusion 平均为 83.75%，比基础 MiniViT 高 8.10 pp；它相对自身 clean 只下降 3.17 pp，而基础 MiniViT 下降 6.19 pp。CutMix 训练反复让模型面对局部区域替换，因而减少了对单一区域完整存在的依赖。这个结果与阶段 12 的训练机制具有一致性，但仍只支持本协议中的方形黑色遮挡，不能直接推广到所有真实遮挡。
+
+### 12.2 Gaussian noise 是共同弱点，但排序不同
+
+Gaussian noise 平均准确率排序为：
+
+~~~text
+MiniViT baseline 55.36% > advanced MiniViT 46.00% > CNN 41.71%
+~~~
+
+CNN 的局部卷积会响应高频像素变化，当前未使用噪声增强，因此下降剧烈。基础 MiniViT 出人意料地最稳，说明更高 clean accuracy 或更强正则化不保证对每种域偏移都更好；CutMix 主要模拟区域替换，并没有训练模型抵抗逐像素噪声。
+
+### 12.3 平移最轻，强对比度/噪声最危险
+
+三模型对 1–4 px translation 的平均下降都较小，训练时的 RandomCrop 已提供位置变化。严重 contrast reduction 与 Gaussian noise 则使信息质量本身下降，最坏条件接近 19–27% accuracy。若未来研究鲁棒训练，应优先针对 noise/contrast，而不是根据 test 继续调本阶段参数；新方法必须回到独立 validation 协议。
+
+## 13. 产物与冻结
+
+- 样例网格：`assets/advanced/stage15/corruption_grid.png`；
+- 114 条条件记录：`assets/advanced/stage15/robustness_conditions.csv`；
+- 6 条模型/split 汇总：`assets/advanced/stage15/robustness_summary.csv`；
+- 含协议、元数据、原始结果的 JSON：`assets/advanced/stage15/robustness_raw.json`。
+
+正式评估脚本 Git blob 为 `2a389fc84518a283343417b37bac33a74cbefa1e`。结果文件 SHA-256 已写入 `ADVANCED_MINIVIT_FINAL.md`。全量测试 389 passed；标签、样本数、顺序、确定性、severity 与共享输入约束全部通过。阶段 15 验收完成。
