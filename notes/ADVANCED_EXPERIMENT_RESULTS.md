@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–13 已完成；advanced MiniViT 配方已在 test 前冻结
+当前状态：阶段 11–14 已完成；advanced MiniViT 配方已冻结并完成效率基准
 
 ## 1. 记录规则
 
@@ -123,7 +123,19 @@ AMP 按主要时间指标获得约 `1.455×` 加速。两组全部数值有限�
 
 三个 seed 的配对提升方向一致。基于 validation 均值与一致性，冻结 R3 CutMix 0.5 为 `advanced_minivit_final`；完整配方、checkpoint 哈希与评估约束见 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。冻结过程未使用新的 test 结果。
 
-## 9. 后续更新要求
+## 9. 阶段 14：效率与资源基准
+
+正式 benchmark 使用 RTX 5060 Laptop GPU、PyTorch 2.14.0+cu130、CUDA 13.0，输入为 CIFAR-10 `[B,3,32,32]`。batch-1 latency 使用 50 次 warmup 与 200 次测量；batch-128 throughput 使用 20 次 warmup 与 100 次测量。每次计时均在 CUDA synchronize 之间完成，不包含 DataLoader。
+
+| 模型 | Best Val | Params | MACs | FP32 latency p50 | AMP throughput | AMP train peak allocated |
+|---|---:|---:|---:|---:|---:|---:|
+| CNN baseline | **89.58%** | 2.609 M | 115.906 M | **0.414 ms** | **54,757 img/s** | **254.42 MiB** |
+| MiniViT baseline | 81.84% | 2.694 M | 182.850 M | 1.692 ms | 20,274 img/s | 632.59 MiB |
+| advanced MiniViT | 86.92% | 2.694 M | 182.850 M | 1.644 ms | 20,456 img/s | 632.59 MiB |
+
+advanced MiniViT 在不增加推理结构成本的情况下比基础 MiniViT 提升 5.08 pp，但 CNN 在当前小图像任务上仍同时具有更高准确率和更低成本。AMP 提高 batch-128 吞吐量并降低训练显存，却因固定调度开销使 batch-1 latency 变慢。完整协议、FP32/AMP p50/p95、推理/训练显存和模型文件拆分见 [STAGE_14_NOTES.md](STAGE_14_NOTES.md)。
+
+## 10. 后续更新要求
 
 每组正式实验结束后：
 
