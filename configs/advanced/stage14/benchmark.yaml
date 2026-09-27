@@ -1,0 +1,29 @@
+device: cuda
+input_shape: [3, 32, 32]
+precisions: [fp32, amp]
+
+latency:
+  batch_size: 1
+  warmup_iterations: 50
+  measured_iterations: 200
+
+throughput:
+  batch_size: 128
+  warmup_iterations: 20
+  measured_iterations: 100
+
+training_memory:
+  batch_size: 128
+  warmup_iterations: 2
+
+candidates:
+  - name: cnn_baseline
+    checkpoint: outputs/cnn_baseline/best.pt
+  - name: minivit_baseline
+    checkpoint: outputs/minivit_baseline/best.pt
+  - name: advanced_minivit_final
+    checkpoint: outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt
+
+output:
+  json: outputs/advanced/stage14/benchmark_raw.json
+  csv: outputs/advanced/stage14/benchmark_summary.csv

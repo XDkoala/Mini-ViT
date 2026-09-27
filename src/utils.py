@@ -99,6 +99,17 @@ def _read_git_is_dirty(project_root: str | Path) -> bool | None:
     return bool(result.stdout.strip())
 
 
+def collect_git_metadata(
+    project_root: str | Path,
+) -> dict[str, object]:
+    """Collect the Git revision and worktree state for an artifact."""
+
+    return {
+        "git_commit": _read_git_commit(project_root),
+        "git_is_dirty": _read_git_is_dirty(project_root),
+    }
+
+
 def collect_run_metadata(
     *,
     project_root: str | Path,
@@ -114,6 +125,8 @@ def collect_run_metadata(
     else:
         device_name = platform.processor() or "CPU"
 
+    git_metadata = collect_git_metadata(project_root)
+
     return {
         "created_at_utc": datetime.now(timezone.utc).isoformat(
             timespec="seconds"
@@ -128,8 +141,7 @@ def collect_run_metadata(
         "platform": platform.platform(),
         "device_type": device.type,
         "device_name": device_name,
-        "git_commit": _read_git_commit(project_root),
-        "git_is_dirty": _read_git_is_dirty(project_root),
+        **git_metadata,
         "split_seed": split_seed,
         "train_seed": train_seed,
         "is_smoke_test": is_smoke_test,
