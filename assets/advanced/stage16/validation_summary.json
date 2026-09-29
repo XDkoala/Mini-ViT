@@ -1,0 +1,792 @@
+{
+  "protocol": "stage16_core50_v1",
+  "protocol_sha256": "9a2ca04e55274f6db2036bde041d9ae754e44ff42bb84f04b73ca8babfff6be8",
+  "manifest_sha256": "d12f46f688851a08287f0220c85f49c5d2ee05e0c084b81066d9b79d101633d0",
+  "split": "validation",
+  "class_names": [
+    "plug_adapters",
+    "mobile_phones",
+    "scissors",
+    "light_bulbs",
+    "cans",
+    "glasses",
+    "balls",
+    "markers",
+    "cups",
+    "remote_controls"
+  ],
+  "models": {
+    "scratch": {
+      "macro_f1": 0.5510017402281676,
+      "per_class": [
+        {
+          "label": 0,
+          "name": "plug_adapters",
+          "support": 147,
+          "precision": 0.4511627906976744,
+          "recall": 0.6598639455782312,
+          "f1": 0.5359116022099447
+        },
+        {
+          "label": 1,
+          "name": "mobile_phones",
+          "support": 149,
+          "precision": 0.6282051282051282,
+          "recall": 0.6577181208053692,
+          "f1": 0.6426229508196721
+        },
+        {
+          "label": 2,
+          "name": "scissors",
+          "support": 148,
+          "precision": 0.589041095890411,
+          "recall": 0.581081081081081,
+          "f1": 0.5850340136054422
+        },
+        {
+          "label": 3,
+          "name": "light_bulbs",
+          "support": 149,
+          "precision": 0.4126984126984127,
+          "recall": 0.348993288590604,
+          "f1": 0.3781818181818182
+        },
+        {
+          "label": 4,
+          "name": "cans",
+          "support": 150,
+          "precision": 0.4444444444444444,
+          "recall": 0.4533333333333333,
+          "f1": 0.44884488448844884
+        },
+        {
+          "label": 5,
+          "name": "glasses",
+          "support": 150,
+          "precision": 0.30851063829787234,
+          "recall": 0.58,
+          "f1": 0.4027777777777778
+        },
+        {
+          "label": 6,
+          "name": "balls",
+          "support": 150,
+          "precision": 0.9393939393939394,
+          "recall": 0.41333333333333333,
+          "f1": 0.5740740740740741
+        },
+        {
+          "label": 7,
+          "name": "markers",
+          "support": 148,
+          "precision": 0.6455696202531646,
+          "recall": 0.6891891891891891,
+          "f1": 0.6666666666666666
+        },
+        {
+          "label": 8,
+          "name": "cups",
+          "support": 150,
+          "precision": 0.8444444444444444,
+          "recall": 0.5066666666666667,
+          "f1": 0.6333333333333333
+        },
+        {
+          "label": 9,
+          "name": "remote_controls",
+          "support": 150,
+          "precision": 0.8080808080808081,
+          "recall": 0.5333333333333333,
+          "f1": 0.642570281124498
+        }
+      ],
+      "confusion_matrix": [
+        [
+          97,
+          2,
+          0,
+          10,
+          15,
+          23,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          98,
+          0,
+          3,
+          8,
+          23,
+          0,
+          5,
+          1,
+          11
+        ],
+        [
+          13,
+          3,
+          86,
+          8,
+          2,
+          20,
+          0,
+          14,
+          0,
+          2
+        ],
+        [
+          50,
+          2,
+          13,
+          52,
+          1,
+          29,
+          0,
+          2,
+          0,
+          0
+        ],
+        [
+          19,
+          19,
+          2,
+          3,
+          68,
+          34,
+          2,
+          3,
+          0,
+          0
+        ],
+        [
+          7,
+          10,
+          11,
+          12,
+          17,
+          87,
+          0,
+          4,
+          0,
+          2
+        ],
+        [
+          12,
+          7,
+          5,
+          3,
+          13,
+          10,
+          62,
+          25,
+          12,
+          1
+        ],
+        [
+          9,
+          0,
+          0,
+          2,
+          2,
+          31,
+          2,
+          102,
+          0,
+          0
+        ],
+        [
+          7,
+          3,
+          11,
+          15,
+          22,
+          11,
+          0,
+          2,
+          76,
+          3
+        ],
+        [
+          1,
+          12,
+          18,
+          18,
+          5,
+          14,
+          0,
+          1,
+          1,
+          80
+        ]
+      ],
+      "mode": "scratch",
+      "split": "validation",
+      "checkpoint": "outputs/advanced/stage16/formal/scratch/train_42/best.pt",
+      "checkpoint_sha256": "243d9c8053ec720baf0b78ade0403ed31afb3698752bf015746879deecd1db97",
+      "best_epoch": 27,
+      "loss": 1.7258169457546262,
+      "accuracy": 0.5419181757209927,
+      "num_samples": 1491,
+      "top_confident_errors": [
+        {
+          "sample_index": 399,
+          "true_label": 2,
+          "predicted_label": 7,
+          "confidence": 0.998685896396637,
+          "correct": false,
+          "relative_path": "s8/o14/C_08_14_140.png"
+        },
+        {
+          "sample_index": 1040,
+          "true_label": 6,
+          "predicted_label": 4,
+          "confidence": 0.9985284805297852,
+          "correct": false,
+          "relative_path": "s8/o35/C_08_35_270.png"
+        },
+        {
+          "sample_index": 398,
+          "true_label": 2,
+          "predicted_label": 7,
+          "confidence": 0.9965736865997314,
+          "correct": false,
+          "relative_path": "s8/o14/C_08_14_130.png"
+        },
+        {
+          "sample_index": 698,
+          "true_label": 4,
+          "predicted_label": 5,
+          "confidence": 0.9962066411972046,
+          "correct": false,
+          "relative_path": "s8/o24/C_08_24_150.png"
+        },
+        {
+          "sample_index": 1041,
+          "true_label": 6,
+          "predicted_label": 4,
+          "confidence": 0.9949894547462463,
+          "correct": false,
+          "relative_path": "s8/o35/C_08_35_280.png"
+        }
+      ]
+    },
+    "linear_probe": {
+      "macro_f1": 0.4007407266547133,
+      "per_class": [
+        {
+          "label": 0,
+          "name": "plug_adapters",
+          "support": 147,
+          "precision": 0.3883495145631068,
+          "recall": 0.54421768707483,
+          "f1": 0.45325779036827196
+        },
+        {
+          "label": 1,
+          "name": "mobile_phones",
+          "support": 149,
+          "precision": 0.4507042253521127,
+          "recall": 0.42953020134228187,
+          "f1": 0.43986254295532645
+        },
+        {
+          "label": 2,
+          "name": "scissors",
+          "support": 148,
+          "precision": 0.7062937062937062,
+          "recall": 0.6824324324324325,
+          "f1": 0.6941580756013745
+        },
+        {
+          "label": 3,
+          "name": "light_bulbs",
+          "support": 149,
+          "precision": 0.5454545454545454,
+          "recall": 0.12080536912751678,
+          "f1": 0.1978021978021978
+        },
+        {
+          "label": 4,
+          "name": "cans",
+          "support": 150,
+          "precision": 0.38095238095238093,
+          "recall": 0.05333333333333334,
+          "f1": 0.0935672514619883
+        },
+        {
+          "label": 5,
+          "name": "glasses",
+          "support": 150,
+          "precision": 0.34673366834170855,
+          "recall": 0.46,
+          "f1": 0.3954154727793696
+        },
+        {
+          "label": 6,
+          "name": "balls",
+          "support": 150,
+          "precision": 0.3347107438016529,
+          "recall": 0.54,
+          "f1": 0.413265306122449
+        },
+        {
+          "label": 7,
+          "name": "markers",
+          "support": 148,
+          "precision": 0.30687830687830686,
+          "recall": 0.7837837837837838,
+          "f1": 0.44106463878326996
+        },
+        {
+          "label": 8,
+          "name": "cups",
+          "support": 150,
+          "precision": 0.825,
+          "recall": 0.22,
+          "f1": 0.3473684210526316
+        },
+        {
+          "label": 9,
+          "name": "remote_controls",
+          "support": 150,
+          "precision": 0.7241379310344828,
+          "recall": 0.42,
+          "f1": 0.5316455696202531
+        }
+      ],
+      "confusion_matrix": [
+        [
+          80,
+          3,
+          5,
+          1,
+          1,
+          31,
+          11,
+          14,
+          1,
+          0
+        ],
+        [
+          4,
+          64,
+          3,
+          0,
+          1,
+          15,
+          13,
+          43,
+          0,
+          6
+        ],
+        [
+          6,
+          0,
+          101,
+          0,
+          0,
+          15,
+          2,
+          21,
+          0,
+          3
+        ],
+        [
+          60,
+          2,
+          5,
+          18,
+          0,
+          21,
+          3,
+          40,
+          0,
+          0
+        ],
+        [
+          11,
+          11,
+          3,
+          0,
+          8,
+          18,
+          54,
+          38,
+          1,
+          6
+        ],
+        [
+          9,
+          11,
+          8,
+          1,
+          2,
+          69,
+          10,
+          38,
+          0,
+          2
+        ],
+        [
+          4,
+          19,
+          0,
+          0,
+          1,
+          3,
+          81,
+          39,
+          2,
+          1
+        ],
+        [
+          5,
+          1,
+          2,
+          0,
+          1,
+          7,
+          9,
+          116,
+          1,
+          6
+        ],
+        [
+          19,
+          14,
+          2,
+          7,
+          7,
+          2,
+          59,
+          7,
+          33,
+          0
+        ],
+        [
+          8,
+          17,
+          14,
+          6,
+          0,
+          18,
+          0,
+          22,
+          2,
+          63
+        ]
+      ],
+      "mode": "linear_probe",
+      "split": "validation",
+      "checkpoint": "outputs/advanced/stage16/formal/linear_probe/train_42/best.pt",
+      "checkpoint_sha256": "e04e1113c22f7bc434617a1f2464a15d81410fc40200bd063b4d9d3cc4e1c6dd",
+      "best_epoch": 46,
+      "loss": 1.6185968938407924,
+      "accuracy": 0.4245472837022133,
+      "num_samples": 1491,
+      "top_confident_errors": [
+        {
+          "sample_index": 377,
+          "true_label": 2,
+          "predicted_label": 7,
+          "confidence": 0.8695783019065857,
+          "correct": false,
+          "relative_path": "s8/o13/C_08_13_210.png"
+        },
+        {
+          "sample_index": 1327,
+          "true_label": 8,
+          "predicted_label": 6,
+          "confidence": 0.8577650785446167,
+          "correct": false,
+          "relative_path": "s8/o45/C_08_45_160.png"
+        },
+        {
+          "sample_index": 810,
+          "true_label": 5,
+          "predicted_label": 7,
+          "confidence": 0.8029778599739075,
+          "correct": false,
+          "relative_path": "s8/o28/C_08_28_070.png"
+        },
+        {
+          "sample_index": 1314,
+          "true_label": 8,
+          "predicted_label": 6,
+          "confidence": 0.7937276363372803,
+          "correct": false,
+          "relative_path": "s8/o45/C_08_45_030.png"
+        },
+        {
+          "sample_index": 1326,
+          "true_label": 8,
+          "predicted_label": 6,
+          "confidence": 0.7826151251792908,
+          "correct": false,
+          "relative_path": "s8/o45/C_08_45_150.png"
+        }
+      ]
+    },
+    "fine_tune": {
+      "macro_f1": 0.7081688912951201,
+      "per_class": [
+        {
+          "label": 0,
+          "name": "plug_adapters",
+          "support": 147,
+          "precision": 0.4901185770750988,
+          "recall": 0.8435374149659864,
+          "f1": 0.62
+        },
+        {
+          "label": 1,
+          "name": "mobile_phones",
+          "support": 149,
+          "precision": 0.7010869565217391,
+          "recall": 0.8657718120805369,
+          "f1": 0.7747747747747747
+        },
+        {
+          "label": 2,
+          "name": "scissors",
+          "support": 148,
+          "precision": 0.6629213483146067,
+          "recall": 0.7972972972972973,
+          "f1": 0.7239263803680982
+        },
+        {
+          "label": 3,
+          "name": "light_bulbs",
+          "support": 149,
+          "precision": 0.6153846153846154,
+          "recall": 0.21476510067114093,
+          "f1": 0.31840796019900497
+        },
+        {
+          "label": 4,
+          "name": "cans",
+          "support": 150,
+          "precision": 0.9324324324324325,
+          "recall": 0.46,
+          "f1": 0.6160714285714286
+        },
+        {
+          "label": 5,
+          "name": "glasses",
+          "support": 150,
+          "precision": 0.56,
+          "recall": 0.7466666666666667,
+          "f1": 0.64
+        },
+        {
+          "label": 6,
+          "name": "balls",
+          "support": 150,
+          "precision": 0.8117647058823529,
+          "recall": 0.92,
+          "f1": 0.8625
+        },
+        {
+          "label": 7,
+          "name": "markers",
+          "support": 148,
+          "precision": 0.8992805755395683,
+          "recall": 0.8445945945945946,
+          "f1": 0.8710801393728222
+        },
+        {
+          "label": 8,
+          "name": "cups",
+          "support": 150,
+          "precision": 0.952,
+          "recall": 0.7933333333333333,
+          "f1": 0.8654545454545455
+        },
+        {
+          "label": 9,
+          "name": "remote_controls",
+          "support": 150,
+          "precision": 0.9051724137931034,
+          "recall": 0.7,
+          "f1": 0.7894736842105263
+        }
+      ],
+      "confusion_matrix": [
+        [
+          124,
+          5,
+          6,
+          0,
+          2,
+          9,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          2,
+          129,
+          0,
+          0,
+          0,
+          6,
+          7,
+          0,
+          1,
+          4
+        ],
+        [
+          8,
+          4,
+          118,
+          3,
+          0,
+          5,
+          0,
+          7,
+          0,
+          3
+        ],
+        [
+          62,
+          6,
+          29,
+          32,
+          1,
+          17,
+          1,
+          1,
+          0,
+          0
+        ],
+        [
+          24,
+          13,
+          4,
+          0,
+          69,
+          29,
+          8,
+          0,
+          1,
+          2
+        ],
+        [
+          11,
+          9,
+          11,
+          4,
+          0,
+          112,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          4,
+          1,
+          0,
+          0,
+          0,
+          138,
+          4,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          4,
+          16,
+          125,
+          0,
+          1
+        ],
+        [
+          14,
+          3,
+          0,
+          2,
+          2,
+          10,
+          0,
+          0,
+          119,
+          0
+        ],
+        [
+          6,
+          10,
+          9,
+          11,
+          0,
+          8,
+          0,
+          0,
+          1,
+          105
+        ]
+      ],
+      "mode": "fine_tune",
+      "split": "validation",
+      "checkpoint": "outputs/advanced/stage16/formal/fine_tune/train_42/best.pt",
+      "checkpoint_sha256": "14e52af049050e20550507feff08bc79874edf66a1b544778972629089b95841",
+      "best_epoch": 33,
+      "loss": 1.6658464857670063,
+      "accuracy": 0.7183098591549296,
+      "num_samples": 1491,
+      "top_confident_errors": [
+        {
+          "sample_index": 1048,
+          "true_label": 7,
+          "predicted_label": 6,
+          "confidence": 0.99982750415802,
+          "correct": false,
+          "relative_path": "s8/o36/C_08_36_050.png"
+        },
+        {
+          "sample_index": 378,
+          "true_label": 2,
+          "predicted_label": 9,
+          "confidence": 0.9997846484184265,
+          "correct": false,
+          "relative_path": "s8/o13/C_08_13_220.png"
+        },
+        {
+          "sample_index": 693,
+          "true_label": 4,
+          "predicted_label": 5,
+          "confidence": 0.9997751116752625,
+          "correct": false,
+          "relative_path": "s8/o24/C_08_24_100.png"
+        },
+        {
+          "sample_index": 694,
+          "true_label": 4,
+          "predicted_label": 5,
+          "confidence": 0.999717652797699,
+          "correct": false,
+          "relative_path": "s8/o24/C_08_24_110.png"
+        },
+        {
+          "sample_index": 495,
+          "true_label": 3,
+          "predicted_label": 0,
+          "confidence": 0.9996922016143799,
+          "correct": false,
+          "relative_path": "s8/o17/C_08_17_220.png"
+        }
+      ]
+    }
+  }
+}
+

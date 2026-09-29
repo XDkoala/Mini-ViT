@@ -4,9 +4,9 @@
 
 开始日期：2026-09-28
 
-当前状态：正式训练与 validation 分析完成；测试协议待冻结后执行
+当前状态：阶段 16 完成；冻结协议下的 test 已一次性评估
 
-当前位置：三组正式训练及逐类 validation 复核完成；下一步冻结评估协议并评估 test
+当前位置：三组正式训练、validation 分析、预测复盘和 test 评估均已完成
 
 ## 进度
 
@@ -24,9 +24,9 @@
 - [x] 完成 scratch / linear probe / fine-tune smoke
 - [x] 在查看结果前记录实验猜想
 - [x] 完成三组正式训练并只依据 validation 分析
-- [ ] 冻结协议后一次性评估 test
-- [ ] 报告 accuracy、macro F1、逐类结果与错误案例
-- [ ] 阶段 16 总验收
+- [x] 冻结协议后一次性评估 test
+- [x] 报告 accuracy、macro F1、逐类结果与错误案例
+- [x] 阶段 16 总验收
 
 ## 1. 核心问题
 
@@ -290,3 +290,44 @@ Fine-tune 比 Scratch 高 17.64 pp，比 Linear Probe 高 29.38 pp；Scratch 比
 ## 15. 冻结的最终评估协议
 
 `configs/advanced/stage16/evaluation.yaml` 固定 manifest SHA-256、三组 `best.pt` 路径与 SHA-256、各自最佳 epoch、batch size。`scripts/evaluate_transfer.py` 严格校验哈希、mode、epoch 和样本顺序；先仅运行 validation 核验。协议和代码通过测试、提交后，才一次性对三组相同 test split 运行评估；test 不用于模型选择、调参或重跑筛选。记录 accuracy、macro F1、逐类 precision/recall/F1、混淆矩阵及高置信错误实例。不同 session 的 test 反映拍摄条件迁移，但同一物体实例仍可能跨 session 出现，不能称作新实例泛化。
+
+协议、评估代码、测试与 validation 结果在 commit `5b5965449e2500fd08061e89c5b7994213545bc8` 冻结；当时完整测试套件为 440 passed。随后仅运行一次 `--split test`，三组模型在同一次命令中按预定顺序评估，没有基于 test 调整模型或配置。
+
+## 16. 冻结 test 结果与总验收
+
+Test 为 s3、s7、s10 的共 4,482 张图像。三组均使用同一 session-level test 划分、各自验证集选出的 `best.pt`；下表不是重新挑选 test 最优 epoch。
+
+| 模式 | Val accuracy | Test accuracy | Val→Test | Test macro F1 |
+|---|---:|---:|---:|---:|
+| Scratch | 54.19% | 36.88% | −17.31 pp | 36.76% |
+| Linear Probe | 42.45% | 35.36% | −7.09 pp | 33.13% |
+| Fine-tune | **71.83%** | **53.82%** | −18.02 pp | **53.15%** |
+
+Test 排序仍为 Fine-tune > Scratch > Linear Probe；Fine-tune 比 Scratch 高 16.93 pp。但所有模式的 test accuracy 均明显低于 validation，说明 s8 上的表现不能代表所有新 session。尤其 s7/s10 更难：
+
+| 模式 | s3 (1,494) | s7 (1,497) | s10 (1,491) |
+|---|---:|---:|---:|
+| Scratch | 50.40% | 32.40% | 27.83% |
+| Linear Probe | 43.91% | 35.07% | 27.10% |
+| Fine-tune | 69.08% | 42.08% | 50.30% |
+
+逐类 test F1（%）：
+
+| 类别 | Scratch | Linear Probe | Fine-tune |
+|---|---:|---:|---:|
+| plug_adapters | 13.3 | 35.9 | 40.1 |
+| mobile_phones | 29.4 | 36.1 | 47.7 |
+| scissors | 32.0 | 51.1 | 45.3 |
+| light_bulbs | 39.4 | 14.2 | 48.5 |
+| cans | 36.3 | 12.6 | 52.8 |
+| glasses | 34.4 | 18.7 | 35.7 |
+| balls | 49.5 | 40.2 | 74.4 |
+| markers | 55.4 | 47.3 | 72.3 |
+| cups | 51.0 | 35.1 | 61.6 |
+| remote_controls | 27.0 | 40.0 | 53.1 |
+
+Fine-tune 在 test 上最弱的是 `glasses` (35.7%) 与 `plug_adapters` (40.1%)，而不是 validation 最弱的 `light_bulbs`；类别难度本身也随 session 变化。对具体错误，评估产物列出最有信心却预测错误的样本，例如 Fine-tune 将 `s10/o9/C_10_09_260.png` 的 `mobile_phones` 错判为 `balls`。这里的“高置信”只是 softmax 最大值，不代表经过概率校准，更不能仅凭一个样本归纳错误成因。
+
+完整产物位于 `outputs/advanced/stage16/evaluation/test_v1/`：`summary.json` 包含 accuracy、macro F1、每类 precision/recall/F1、混淆矩阵及错误样本；三份 `*_predictions.csv` 保留逐样本路径和预测。原始 `summary.json` SHA-256 为 `d62d7c3b37dad95e908a2b8b752a89934130252424631d3534db191184920eb1`。语义相同的 validation/test 详细摘要另存为 Git 跟踪的 `assets/advanced/stage16/validation_summary.json` 和 `assets/advanced/stage16/test_summary.json`（文本换行格式不同，文件字节哈希不同）。`outputs/` 不进 Git，因此需要逐张预测时须保留本地产物或按已冻结协议重新评估；不能用重评结果再选配方。
+
+最终结论：源域预训练 encoder 在本协议下提供明显迁移收益，允许目标域微调比只训练新头效果好；但跨 session 泛化远弱于 s8 validation。域差异既包含 CIFAR-10 到手持近距离物品的来源变化，也包含 CORe50 各 session 的背景、光照和拍摄状态变化；现有对照无法分离这些因素的贡献。统一压到 32×32 可能抹去细小结构（已在 train 样本图中观察到），但也没有单独做分辨率消融，不能把 test 下降归因于缩放。单 seed、固定超参数与“同物体实例跨 session”的设计限制仍在。后续若研究新实例泛化、不同目标域学习率或跨 seed 稳定性，应注册为新实验，不能事后改写本轮结论。

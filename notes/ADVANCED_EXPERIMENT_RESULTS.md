@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–15 已完成；阶段 16 三组迁移训练及 validation 分析完成，待冻结后评估 test
+当前状态：阶段 11–16 已完成；阶段 16 的迁移训练、validation 分析和冻结 test 评估均已记录
 
 ## 1. 记录规则
 
@@ -160,7 +160,17 @@ CNN 与 advanced MiniViT 的 corruption macro 接近但失效模式不同：CNN 
 | Linear Probe | 46 | 42.45% | 40.07% | 9.72 pp |
 | Fine-tune | 33 | **71.83%** | **70.82%** | 27.11 pp |
 
-Fine-tune 比 Scratch 高 17.64 pp；三组最佳准确率排序符合实验前预测，但“Linear Probe 前期最快”和“Scratch 最晚达到最佳 epoch”均不符合。完整预测复盘、逐类弱项、checkpoint 指纹与测试集协议见 [STAGE_16_NOTES.md](STAGE_16_NOTES.md)。单 seed、共用超参数、同物体不同 session 的边界必须与结果同时报告。测试集尚未在阶段 16 使用。
+Fine-tune 比 Scratch 高 17.64 pp；三组最佳准确率排序符合实验前预测，但“Linear Probe 前期最快”和“Scratch 最晚达到最佳 epoch”均不符合。完整预测复盘、逐类弱项、checkpoint 指纹与测试集协议见 [STAGE_16_NOTES.md](STAGE_16_NOTES.md)。单 seed、共用超参数、同物体不同 session 的边界必须与结果同时报告。
+
+协议已在 commit `5b59654` 冻结后，三组 `best.pt` 在相同 4,482 张 test 图像上各评估一次：
+
+| 模式 | Test accuracy | Test macro F1 | Val→Test accuracy |
+|---|---:|---:|---:|
+| Scratch | 36.88% | 36.76% | −17.31 pp |
+| Linear Probe | 35.36% | 33.13% | −7.09 pp |
+| Fine-tune | **53.82%** | **53.15%** | −18.02 pp |
+
+三组均有明显的数值下降；这里未做统计显著性检验。s3、s7、s10 的难度也不同，不应把 s8 的验证准确率直接当作稳定跨 session 性能。完整逐类和错误案例见 [STAGE_16_NOTES.md](STAGE_16_NOTES.md)，详细 JSON 留存在 `assets/advanced/stage16/`。原始测试产物 `outputs/advanced/stage16/evaluation/test_v1/summary.json` 的 SHA-256 为 `d62d7c3b37dad95e908a2b8b752a89934130252424631d3534db191184920eb1`。
 
 ## 12. 后续更新要求
 
