@@ -6,7 +6,7 @@
 
 当前状态：进行中
 
-当前位置：三组正式配置、训练入口与端到端 smoke 已通过；正式训练前等待记录实验猜想
+当前位置：三组正式配置、训练入口与端到端 smoke 已通过；实验前猜想已记录，等待用户启动正式训练
 
 ## 进度
 
@@ -22,7 +22,7 @@
 - [x] 实现 CORe50 dataset/dataloader 与契约测试
 - [x] 实现分类头替换和 encoder 冻结机制
 - [x] 完成 scratch / linear probe / fine-tune smoke
-- [ ] 在查看结果前记录实验猜想
+- [x] 在查看结果前记录实验猜想
 - [ ] 完成三组正式训练并只依据 validation 分析
 - [ ] 冻结协议后一次性评估 test
 - [ ] 报告 accuracy、macro F1、逐类结果与错误案例
@@ -106,7 +106,7 @@ Linear Probe 中“冻结”必须同时满足：
 
 ## 6. 下一微步
 
-在查看任何正式 validation 结果前记录 Scratch / Linear Probe / Fine-tune 的“实验前猜想”。猜想冻结后，由用户依次启动三条正式训练命令；训练期间不读取 CORe50 test，也不根据单组结果修改剩余配置。
+用户依次启动三条正式训练命令。每组结束后验收 checkpoint、完整 validation 指标与状态；三组全部完成后比较预注册猜想。训练期间不读取 CORe50 test，也不根据单组结果修改剩余配置。
 
 ## 7. 数据完整性验收结果
 
@@ -240,3 +240,21 @@ batch_mixing: none
 | Fine-tune | 2,693,578 | 633.0 MiB | 完整 | encoder 可更新 |
 
 Linear Probe 的新 classifier 与 source classifier 不相等，证明旧 head 未被沿用。smoke validation 只遍历最前两个 sequential batches，类别覆盖不完整，因此显示的准确率不能作为模式优劣证据，也不会写入正式实验总账。
+
+## 13. 正式实验前猜想（用户原始判断）
+
+记录日期：2026-09-29。以下判断由用户在查看正式迁移实验结果前给出；此前的短 smoke 准确率因 validation 类别覆盖不完整，不作为预测依据。
+
+| 问题 | 预测 | 用户理由或保留意见 |
+|---|---|---|
+| 最佳 validation accuracy | Fine-tune > Scratch > Linear Probe | 预训练应有明显帮助，冻结编码器的适应能力有限 |
+| 前期学习最快 | Linear Probe | 只训练新分类头，很快收敛，但无法进一步深入学习 |
+| 最晚达到最佳 epoch | Scratch | 从头学习视觉特征，收敛较慢 |
+| Linear Probe 是否明显超过随机水平 10% | 能 | 已有视觉表征应该具有一定迁移能力 |
+| Linear Probe 与 Fine-tune 的最佳准确率差距 | 大 | 可训练 encoder 能适应新的图像和类别 |
+| Fine-tune 相比 Scratch | 应有明显优势 | 预训练提供更好的初始表征 |
+| 负迁移 | 有可能 | 最不确定的判断；旧表征也可能妨碍新任务 |
+| 训练准确率最高 | Fine-tune | 用户预测 |
+| train–validation accuracy gap 最大 | Scratch | 训练集较小，更易过拟合 |
+
+结果复盘时，“最佳验证准确率”统一取每组 50 epoch 的最高完整 validation accuracy；“最佳 epoch”取首次达到最高值的 epoch；泛化差距统一计算同一最佳 epoch 的 `train_accuracy - val_accuracy`，不拿不同 epoch 的最大值相减。Linear Probe 是否“明显高于 10%”与 Fine-tune 是否“明显优于 Scratch”，先报告精确百分点差，不擅自补写用户未指定的显著性阈值。单 seed 结果只能作为本次对照的初步证据，不能据此断言迁移效果跨 seed 稳定。
