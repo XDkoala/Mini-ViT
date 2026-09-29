@@ -114,7 +114,7 @@ def collect_run_metadata(
     *,
     project_root: str | Path,
     device: torch.device,
-    split_seed: int,
+    split_seed: int | None,
     train_seed: int,
     is_smoke_test: bool,
 ) -> dict[str, object]:

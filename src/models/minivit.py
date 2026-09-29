@@ -634,12 +634,12 @@ class MiniViT(nn.Module):
             b=0.04,
         )
         
-    def forward(
+    def forward_features(
         self,
         images: Tensor,
         return_attention: bool = False,
     ) -> Tensor | tuple[Tensor, Tensor]:
-        """Convert an image batch into classification logits."""
+        """Encode images into final CLS representations."""
 
         # 输入必须是：[batch, channel, height, width]
         if images.ndim != 4:
@@ -721,18 +721,32 @@ class MiniViT(nn.Module):
         # [B, N, D] -> [B, D]
         cls_representation = tokens[:, 0, :]
 
-        # 将 CLS 表征映射为每个类别的原始分数。
-        # [B, D] -> [B, K]
-        logits = self.classifier(
-            cls_representation
-        )
-
         if return_attention:
             if last_attention is None:
                 raise RuntimeError(
                     "last attention weights were not produced."
                 )
 
+            return cls_representation, last_attention
+
+        return cls_representation
+
+    def forward(
+        self,
+        images: Tensor,
+        return_attention: bool = False,
+    ) -> Tensor | tuple[Tensor, Tensor]:
+        """Convert an image batch into classification logits."""
+
+        if return_attention:
+            cls_representation, last_attention = self.forward_features(
+                images,
+                return_attention=True,
+            )
+            logits = self.classifier(cls_representation)
             return logits, last_attention
+
+        cls_representation = self.forward_features(images)
+        logits = self.classifier(cls_representation)
 
         return logits

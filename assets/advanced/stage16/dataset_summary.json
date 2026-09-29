@@ -1,0 +1,92 @@
+{
+  "dataset": "CORe50",
+  "task": "10-class category-level RGB classification",
+  "created_at": "2026-09-28T06:16:45.983854+00:00",
+  "source": {
+    "homepage": "https://vlomonaco.github.io/core50/",
+    "archive_filename": "core50_128x128.zip",
+    "archive_bytes": 5892103007,
+    "archive_sha256": "f3d65017490dfc4392bc5e41b66930600f1d00898cae47fc4bd1a01cf92e1c6a",
+    "raw_png_count": 164866
+  },
+  "protocol": {
+    "frame_stride": 10,
+    "frame_rule": "frame_id % 10 == 0",
+    "session_splits": {
+      "train": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        9,
+        11
+      ],
+      "validation": [
+        8
+      ],
+      "test": [
+        3,
+        7,
+        10
+      ]
+    },
+    "input_source_size": [
+      128,
+      128
+    ],
+    "model_input_size": [
+      32,
+      32
+    ],
+    "selected_images_fully_decoded": true
+  },
+  "manifest": {
+    "filename": "stage16_core50.csv",
+    "sha256": "d12f46f688851a08287f0220c85f49c5d2ee05e0c084b81066d9b79d101633d0"
+  },
+  "selected_image_count": 16425,
+  "split_counts": {
+    "train": 10452,
+    "validation": 1491,
+    "test": 4482
+  },
+  "class_counts": {
+    "train": {
+      "plug_adapters": 1045,
+      "mobile_phones": 1045,
+      "scissors": 1043,
+      "light_bulbs": 1043,
+      "cans": 1047,
+      "glasses": 1044,
+      "balls": 1050,
+      "markers": 1044,
+      "cups": 1045,
+      "remote_controls": 1046
+    },
+    "validation": {
+      "plug_adapters": 147,
+      "mobile_phones": 149,
+      "scissors": 148,
+      "light_bulbs": 149,
+      "cans": 150,
+      "glasses": 150,
+      "balls": 150,
+      "markers": 148,
+      "cups": 150,
+      "remote_controls": 150
+    },
+    "test": {
+      "plug_adapters": 449,
+      "mobile_phones": 449,
+      "scissors": 450,
+      "light_bulbs": 447,
+      "cans": 449,
+      "glasses": 448,
+      "balls": 448,
+      "markers": 447,
+      "cups": 449,
+      "remote_controls": 446
+    }
+  }
+}

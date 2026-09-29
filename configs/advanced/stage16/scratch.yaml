@@ -1,0 +1,49 @@
+format_version: 2
+
+experiment:
+  name: stage16_scratch_train42
+  output_dir: outputs/advanced/stage16/formal/scratch/train_42
+
+randomness:
+  train_seed: 42
+
+device: auto
+
+data:
+  dataset_root: data/core50/raw/core50_128x128
+  manifest: data/core50/manifests/stage16_core50.csv
+  manifest_sha256: d12f46f688851a08287f0220c85f49c5d2ee05e0c084b81066d9b79d101633d0
+  batch_size: 128
+  num_workers: 0
+  augmentation: basic
+
+model:
+  name: minivit
+  image_size: 32
+  in_channels: 3
+  num_classes: 10
+  patch_size: 4
+  embed_dim: 192
+  depth: 6
+  num_heads: 6
+  mlp_dim: 768
+  dropout: 0.1
+
+transfer:
+  mode: scratch
+  source_checkpoint: null
+  source_sha256: null
+
+training:
+  epochs: 50
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.05
+  scheduler:
+    name: warmup_cosine
+    warmup_epochs: 3
+    start_factor: 0.1
+    min_factor: 0.1
+  gradient_clip_norm: 1.0
+  amp: true
+  label_smoothing: 0.0
