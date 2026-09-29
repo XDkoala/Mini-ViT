@@ -4,9 +4,9 @@
 
 开始日期：2026-09-28
 
-当前状态：进行中
+当前状态：正式训练与 validation 分析完成；测试协议待冻结后执行
 
-当前位置：三组正式配置、训练入口与端到端 smoke 已通过；实验前猜想已记录，等待用户启动正式训练
+当前位置：三组正式训练及逐类 validation 复核完成；下一步冻结评估协议并评估 test
 
 ## 进度
 
@@ -23,7 +23,7 @@
 - [x] 实现分类头替换和 encoder 冻结机制
 - [x] 完成 scratch / linear probe / fine-tune smoke
 - [x] 在查看结果前记录实验猜想
-- [ ] 完成三组正式训练并只依据 validation 分析
+- [x] 完成三组正式训练并只依据 validation 分析
 - [ ] 冻结协议后一次性评估 test
 - [ ] 报告 accuracy、macro F1、逐类结果与错误案例
 - [ ] 阶段 16 总验收
@@ -258,3 +258,35 @@ Linear Probe 的新 classifier 与 source classifier 不相等，证明旧 head 
 | train–validation accuracy gap 最大 | Scratch | 训练集较小，更易过拟合 |
 
 结果复盘时，“最佳验证准确率”统一取每组 50 epoch 的最高完整 validation accuracy；“最佳 epoch”取首次达到最高值的 epoch；泛化差距统一计算同一最佳 epoch 的 `train_accuracy - val_accuracy`，不拿不同 epoch 的最大值相减。Linear Probe 是否“明显高于 10%”与 Fine-tune 是否“明显优于 Scratch”，先报告精确百分点差，不擅自补写用户未指定的显著性阈值。单 seed 结果只能作为本次对照的初步证据，不能据此断言迁移效果跨 seed 稳定。
+
+## 14. 正式训练与 validation 结果
+
+三组均为用户启动的正式 50-epoch、seed-42 训练。`run_status.json` 均为 `completed`、`aggregation_eligible=true`、干净 Git 快照；训练配置与 manifest 一致。Linear Probe 的 78 个 encoder tensors 在 `best.pt` 与 `last.pt` 均与源 checkpoint 逐元素相等，Fine-tune 的 78 个 encoder tensors 则均有改变。评估脚本重新加载三组 `best.pt`，逐张遍历全部 1,491 张 validation 图像，其 accuracy 与训练历史最佳 epoch 完全一致。
+
+| 模式 | 最佳 epoch | 最佳 val accuracy | 同轮 train accuracy | 同轮 gap | Val macro F1 | 最终 epoch val accuracy |
+|---|---:|---:|---:|---:|---:|---:|
+| Scratch | 27 | 54.19% | 91.80% | 37.61 pp | 55.10% | 49.30% |
+| Linear Probe | 46 | 42.45% | 52.17% | 9.72 pp | 40.07% | 42.19% |
+| Fine-tune | 33 | **71.83%** | 98.94% | 27.11 pp | **70.82%** | 70.09% |
+
+Fine-tune 比 Scratch 高 17.64 pp，比 Linear Probe 高 29.38 pp；Scratch 比 Linear Probe 高 11.74 pp。三个模式都远高于 10% 的十类均匀随机基线，但这不是统计显著性检验。Fine-tune 到 epoch 1 已达到 44.13% val accuracy，Scratch 与 Linear Probe 分别仅为 12.54%、12.01%；到 epoch 3 分别为 67.67%、22.67%、18.51%。所以前期最快的是 Fine-tune，不是参数最少的 Linear Probe。
+
+逐类 validation 结果中，Fine-tune 的 `light_bulbs` F1 仅约 0.32，明显低于其总体水平；`cans` 和 `plug_adapters` 约 0.62。下游分析不应把 71.83% 误读为每类都同样可靠。完整的混淆矩阵、各类 precision/recall/F1、逐张预测和高置信错误样本见 `outputs/advanced/stage16/evaluation/validation_v1/`。这些错误是固定 validation 上的诊断结果，不用于改动本轮模型。
+
+### 14.1 实验前猜想复盘
+
+| 预测 | 对照结果 | 判断 |
+|---|---|---|
+| Fine-tune > Scratch > Linear Probe | 71.83% > 54.19% > 42.45% | 符合 |
+| Linear Probe 前期最快 | Fine-tune 在 epoch 1、3 明显领先 | 不符合；只训练少量参数不等于表征立即适配新任务 |
+| Scratch 最晚到最佳 epoch | Probe 46 > Fine-tune 33 > Scratch 27 | 不符合；共享 LR 下 Probe 仍缓慢改善，不能据此断定它已充分优化 |
+| Probe 明显超过 10%，但与 Fine-tune 差距大 | +32.45 pp；落后 Fine-tune 29.38 pp | 符合本次定性判断 |
+| Fine-tune 比 Scratch 有明显优势 | +17.64 pp | 符合；本协议下未观察到负迁移，但不能排除其他数据或配方 |
+| Fine-tune train accuracy 最高 | 最佳 epoch 98.94% | 符合 |
+| Scratch 的 train–validation gap 最大 | 37.61 pp > 27.11 pp > 9.72 pp | 符合 |
+
+反思：模型可训练参数少只表示每步更便宜，不保证优化轮次更少。Linear Probe 只能重新组合固定的源域特征；当类别和拍摄域变化较大时，新分类头可能受特征可分性限制。Fine-tune 能调整特征，因此既快速受益于源域初始化，又能适应目标域；但它的 27.11 pp gap 与最终轮验证准确率回落也显示明显过拟合。所有结论仅针对这一次 session-level split、seed 42、共用超参数；尤其不能从一个 seed 推出稳定性或因果归因。
+
+## 15. 冻结的最终评估协议
+
+`configs/advanced/stage16/evaluation.yaml` 固定 manifest SHA-256、三组 `best.pt` 路径与 SHA-256、各自最佳 epoch、batch size。`scripts/evaluate_transfer.py` 严格校验哈希、mode、epoch 和样本顺序；先仅运行 validation 核验。协议和代码通过测试、提交后，才一次性对三组相同 test split 运行评估；test 不用于模型选择、调参或重跑筛选。记录 accuracy、macro F1、逐类 precision/recall/F1、混淆矩阵及高置信错误实例。不同 session 的 test 反映拍摄条件迁移，但同一物体实例仍可能跨 session 出现，不能称作新实例泛化。

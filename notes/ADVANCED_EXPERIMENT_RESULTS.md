@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–15 已完成；效率与相机扰动鲁棒性均已正式评估
+当前状态：阶段 11–15 已完成；阶段 16 三组迁移训练及 validation 分析完成，待冻结后评估 test
 
 ## 1. 记录规则
 
@@ -150,7 +150,19 @@ advanced MiniViT 在不增加推理结构成本的情况下比基础 MiniViT 提
 
 CNN 与 advanced MiniViT 的 corruption macro 接近但失效模式不同：CNN 在 brightness、contrast、blur、translation 上更强；advanced 的 CutMix 配方在 occlusion 上明显领先；基础 MiniViT 在 Gaussian noise 下反而最好。完整 114 条记录、severity 汇总、共享输入哈希和边界说明见 [STAGE_15_NOTES.md](STAGE_15_NOTES.md)。
 
-## 11. 后续更新要求
+## 11. 阶段 16：CORe50 跨域迁移（validation）
+
+三组 50-epoch、seed-42 正式训练保持相同目标域配方，仅改变是否采用源域 encoder 以及是否冻结 encoder。CORe50 使用 session-level split，validation 为 s8，共 1,491 张。结果按各组 `best.pt` 重新完整评估：
+
+| 模式 | 最佳 epoch | Best Val Accuracy | Val Macro F1 | 同轮 Train–Val Gap |
+|---|---:|---:|---:|---:|
+| Scratch | 27 | 54.19% | 55.10% | 37.61 pp |
+| Linear Probe | 46 | 42.45% | 40.07% | 9.72 pp |
+| Fine-tune | 33 | **71.83%** | **70.82%** | 27.11 pp |
+
+Fine-tune 比 Scratch 高 17.64 pp；三组最佳准确率排序符合实验前预测，但“Linear Probe 前期最快”和“Scratch 最晚达到最佳 epoch”均不符合。完整预测复盘、逐类弱项、checkpoint 指纹与测试集协议见 [STAGE_16_NOTES.md](STAGE_16_NOTES.md)。单 seed、共用超参数、同物体不同 session 的边界必须与结果同时报告。测试集尚未在阶段 16 使用。
+
+## 12. 后续更新要求
 
 每组正式实验结束后：
 

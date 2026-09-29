@@ -1,0 +1,19 @@
+protocol: stage16_core50_v1
+manifest: data/core50/manifests/stage16_core50.csv
+manifest_sha256: d12f46f688851a08287f0220c85f49c5d2ee05e0c084b81066d9b79d101633d0
+dataset_root: data/core50/raw/core50_128x128
+batch_size: 128
+num_workers: 0
+models:
+  scratch:
+    checkpoint: outputs/advanced/stage16/formal/scratch/train_42/best.pt
+    sha256: 243d9c8053ec720baf0b78ade0403ed31afb3698752bf015746879deecd1db97
+    best_epoch: 27
+  linear_probe:
+    checkpoint: outputs/advanced/stage16/formal/linear_probe/train_42/best.pt
+    sha256: e04e1113c22f7bc434617a1f2464a15d81410fc40200bd063b4d9d3cc4e1c6dd
+    best_epoch: 46
+  fine_tune:
+    checkpoint: outputs/advanced/stage16/formal/fine_tune/train_42/best.pt
+    sha256: 14e52af049050e20550507feff08bc79874edf66a1b544778972629089b95841
+    best_epoch: 33
