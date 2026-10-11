@@ -2,7 +2,9 @@
 
 > 本文已根据 Mini ViT 项目的真实实现与实验结果更新。阶段 0–9 已完成；本文既保留可复用的学习路线，也作为代码、笔记、实验和命令的总导航。
 
-最后更新：2026-09-23
+最后更新：2026-10-11
+
+范围说明：本文记录阶段 0–9 的基础学习路线；进阶阶段 10–18 也已完成，见[进阶工作流](ADVANCED_PROJECT_WORKFLOW.md)和[最终报告](FINAL_EXPERIMENT_REPORT.md)。阶段笔记与下文历史验收数字保留当时上下文，不代表当前尚未实现相应功能。当前复现命令以 [README](../README.md) 与[复现指南](REPRODUCTION_GUIDE.md)为准，历史目录不得覆盖。
 
 ## 当前进度
 
@@ -33,7 +35,7 @@
 6. 训练曲线、混淆矩阵、错误样本和注意力图。
 7. 单元测试、实验结果表和项目 README。
 
-当前不做以下内容：
+基础阶段不纳入以下内容（不是当前整个项目的功能缺口）：
 
 - 具身数据集迁移。
 - 目标检测、分割或机器人控制。
@@ -42,6 +44,8 @@
 - 追求论文级精度。
 
 项目的第一个目标是“**正确、可运行、可解释、可复现**”，而不是“指标最高”。
+
+其中迁移学习、Mixup/CutMix 与 CLI 推理已在进阶阶段完成；知识蒸馏、分布式训练、生产部署、检测/分割/控制仍不在本项目主线内。
 
 ---
 
@@ -683,14 +687,14 @@ epoch,train_loss,train_accuracy,val_loss,val_accuracy,epoch_time_seconds
 本项目的冒烟训练必须显式使用独立输出目录，防止覆盖正式结果：
 
 ```powershell
-python -m scripts.train --config configs/minivit.yaml --epochs 2 --max-batches 2 --output-dir outputs/smoke_minivit
+python -m scripts.train --config configs/minivit.yaml --epochs 2 --max-batches 2 --output-dir outputs/reproduction/smoke_minivit
 ```
 
 正式训练与断点续训：
 
 ```powershell
-python -m scripts.train --config configs/minivit.yaml
-python -m scripts.train --config configs/minivit.yaml --resume outputs/minivit_baseline/last.pt
+python -m scripts.train --config configs/minivit.yaml --output-dir outputs/reproduction/minivit
+python -m scripts.train --config configs/minivit.yaml --resume outputs/reproduction/minivit/last.pt --output-dir outputs/reproduction/minivit
 ```
 
 `--epochs` 表示目标总 epoch，不是从 checkpoint 起额外增加的轮数。
@@ -908,24 +912,26 @@ Confidence: 0.xx
 
 ### 12.5 实际评估和可视化命令
 
-最终评估只接受名为 `best.pt` 的冻结 checkpoint：
+新运行的最终评估只接受名为 `best.pt` 的冻结 checkpoint。以下示例要求先在对应复现目录完成 MiniViT 与 CNN 训练；历史基础结果无需重跑：
 
 ```powershell
-python -m scripts.evaluate --checkpoint outputs/minivit_baseline/best.pt
-python -m scripts.evaluate --checkpoint outputs/cnn_baseline/best.pt
+python -m scripts.evaluate --checkpoint outputs/reproduction/minivit/best.pt
+python -m scripts.evaluate --checkpoint outputs/reproduction/cnn/best.pt
 ```
 
 局部冒烟评估必须使用独立目录：
 
 ```powershell
-python -m scripts.evaluate --checkpoint outputs/minivit_baseline/best.pt --max-batches 2 --output-dir outputs/evaluation_smoke
+python -m scripts.evaluate --checkpoint outputs/reproduction/minivit/best.pt --max-batches 2 --output-dir outputs/reproduction/evaluation_smoke
 ```
 
-在全部正式评估完成后生成图表：
+历史基础图表的重建入口（只在原始 baseline 日志、预测与权重均存在时使用）：
 
 ```powershell
-python -m scripts.visualize
+python -m scripts.visualize --output-root outputs/reproduction/figures
 ```
+
+该脚本固定读取 `outputs/minivit_baseline/` 与 `outputs/cnn_baseline/`，不会自动改读上面的新训练目录。`--output-root` 只改变图片输出位置，不改变输入来源；查看已发布图表不需要执行重建。
 
 最终测试结果：
 
@@ -978,7 +984,7 @@ README 是他人理解项目的入口，不要只写安装命令。
 
 - [x] README 提供固定依赖和虚拟环境安装步骤。
 - [x] 所有项目文档使用相对路径或可移植占位路径。
-- [x] 全量自动化测试为 `184 passed`。
+- [x] 基础阶段收尾时全量自动化测试为 `184 passed`（当前原环境/独立新环境均为 `479 passed`，见阶段 18 记录）。
 - [x] 2 epoch 隔离冒烟训练命令已经验收。
 - [x] 评估命令可从冻结的 `best.pt` 生成指标与逐样本预测。
 - [x] 可视化脚本可从日志和预测文件生成 7 张正式图片。
@@ -1086,4 +1092,6 @@ README 是他人理解项目的入口，不要只写安装命令。
 
 阶段 0–9 的基础项目主线已经全部完成：代码、测试、正式实验、最终评估、图表、学习笔记和仓库 README 均已闭环。
 
-基础阶段没有必须继续执行的任务。若进入进阶主线，应从 [ADVANCED_PROJECT_WORKFLOW.md](ADVANCED_PROJECT_WORKFLOW.md) 的阶段 10 开始，先建立新的实验协议，再依次研究优化、正则化、效率、鲁棒性和具身迁移。不要覆盖当前冻结结果，也不要使用测试集反复试错。
+阶段 10–18 的进阶主线也已完成，代码、轻量结果与文档已上传 GitHub；当前没有必须继续执行的训练或评估任务。学习者可按[进阶工作流](ADVANCED_PROJECT_WORKFLOW.md)从阶段 10 复习实验协议、优化、正则化、效率、鲁棒性和迁移机制。
+
+阶段 18 已完成原环境与独立新环境各 479 项测试，并接受 7 组基础旧评估缺原运行 commit 的明确历史例外；这不等同于从零下载全部数据/权重的干净克隆验收。新研究应另建协议与输出目录，不覆盖冻结结果，也不继续利用已查看的 test 调参。报告与发布边界见[阶段 18 笔记](STAGE_18_NOTES.md)。

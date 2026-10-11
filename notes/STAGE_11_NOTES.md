@@ -1540,7 +1540,7 @@ CUDA 运算通常由 CPU 异步提交。若只在 Python 代码两侧读取时�
 - CUDA AMP smoke test 成功，峰值约为 allocated 80.13 MiB、reserved 94.00 MiB；
 - 全量测试通过：297 passed。
 
-当前状态：测量代码与配置已经就绪。下一步先创建 clean commit，再依次运行 FP32 和 AMP 正式实验。
+该准备微步的历史状态：测量代码与配置已经就绪，当时下一步是创建 clean commit 并运行 FP32/AMP 正式实验。两组已在后续第 41 节完成并记录，不是当前待执行任务。
 
 ## 41. AMP 正式效率对照结果
 

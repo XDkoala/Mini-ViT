@@ -62,7 +62,7 @@ sample_std = sqrt(sum((x_i - mean)^2) / (n - 1))
 
 ## 5. 数据隔离与冻结规则
 
-本阶段仍只使用 train/validation，不读取 CIFAR-10 test 结果进行选择。完成统计后，根据 validation mean、波动、计算成本和实现复杂度冻结 `advanced_minivit_final` 的完整配置、三个 seed 的 best checkpoint 与评估规则；阶段 18 才进行统一 clean test。
+本阶段只使用 train/validation，不读取 CIFAR-10 test 结果进行选择。完成统计后，根据 validation mean、波动、计算成本和实现复杂度冻结 `advanced_minivit_final` 的完整配置、三个 seed 的 best checkpoint 与评估规则。后续实际安排为阶段 15 评估 seed 42 的 clean/corrupted test，阶段 18 复用并补齐另外两个 seed 的 clean test；所有 test 均不反向参与配方选择。
 
 ## 6. 三 seed 正式结果
 
@@ -101,6 +101,6 @@ CutMix seed 2026 的时间明显偏长，但模型、数据和预算没有变化
 
 阶段 13 根据 validation 冻结 `advanced_minivit_final`：MiniViT p4/d6、O3 优化栈、CUDA AMP、basic augmentation、CutMix alpha 0.5。模型参数量为 2,693,578。
 
-三个 train seed 的 best checkpoint、SHA-256、来源 commit、评估脚本版本与 test 隔离规则记录在 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。冻结后不再依据 test 修改配方；阶段 14–17 默认使用该配方，阶段 18 才统一进行 clean test。
+三个 train seed 的 best checkpoint、SHA-256、来源 commit、评估脚本版本与 test 隔离规则记录在 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。冻结后不再依据 test 修改配方；阶段 14–17 使用该冻结配方。实际后续执行中，阶段 15 按冻结鲁棒性协议完成 seed 42 的 clean/corrupted test；阶段 18 复用该 clean 结果，只补齐 seeds 123、2026 的 clean test，再汇总三 seed。此补充说明执行时间线，不改变阶段 13 的原始选择依据。
 
 聚合器最终报告 `eligible=13, skipped=30`。阶段 13 没有意外排除项。至此，多 seed 原始值、统计量、配对差值、运行溯源和最终候选冻结全部闭环。

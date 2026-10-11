@@ -4,6 +4,8 @@
 
 设计日期：2026-09-25
 
+最后更新：2026-10-11。本文保留可复用的设计步骤，同时以实际验收记录更新完成状态；阶段笔记中的中途计划、猜想和测试数量属于各自的历史上下文。
+
 当前状态：阶段 10–18 已完成；阶段 18 的评估、报告、仓库核查与独立环境 479 项测试均已通过，项目所有者于 2026-10-11 接受基础旧评估缺原运行 commit 的历史例外。验收范围与限制见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。
 
 ## 0. 进阶项目目标
@@ -85,7 +87,7 @@ notes/ADVANCED_EXPERIMENT_RESULTS.md
 - 阶段 10–13 只依据 train/validation 选择策略；
 - 不为每个候选运行 clean test；
 - 阶段 13 冻结最终配方、seed 和 checkpoint；
-- 阶段 18 才统一评估冻结候选；
+- 阶段 15 按冻结协议评估 seed 42 的 clean/corrupted test，阶段 16 完成冻结迁移 test；阶段 18 复用已有结果，仅补齐源域 seeds 123、2026 的 clean test；
 - test 结果不能反过来决定 scheduler、增强强度或结构。
 
 鲁棒性开发只使用 corrupted validation。扰动类型、强度和模型冻结后，才生成 corrupted test。
@@ -405,13 +407,15 @@ cutmix alpha：0.5 / 1.0
 
 ### 9.3 验收
 
-- [ ] Label Smoothing 只改变训练 loss。
-- [ ] Mixup 软标签概率和为 1。
-- [ ] CutMix 用真实裁剪面积重算 lambda。
-- [ ] validation/test 不使用 batch 混合。
-- [ ] 配置可准确恢复增强策略。
-- [ ] 每个正式实验只改变一个因素。
-- [ ] 猜想与选择规则在看结果前记录。
+- [x] Label Smoothing 只改变训练 loss。
+- [x] Mixup 软标签概率和为 1。
+- [x] CutMix 用真实裁剪面积重算 lambda。
+- [x] validation/test 不使用 batch 混合。
+- [x] 配置可准确恢复增强策略。
+- [x] 每个正式实验只改变一个因素。
+- [x] 猜想与选择规则在看结果前记录。
+
+实际完成 R0–R3，未追加可选 R4；dirty R1 保留为协议排除项，并以 clean 运行完成正式对照。实现、筛选与验收证据见 [STAGE_12_NOTES.md](STAGE_12_NOTES.md)。
 
 训练 soft-label accuracy 与普通 hard-label accuracy 不等价，主要依据 validation 指标选择。
 
@@ -468,13 +472,15 @@ s = sqrt(sum((x_i - mean)^2) / (n - 1))
 
 ### 10.4 验收
 
-- [ ] 所有候选使用同一 split_seed。
-- [ ] 每个配置完成预注册的全部 seed。
-- [ ] 聚合结果可追溯到单次 run。
-- [ ] 报告 mean、sample std 和原始值。
-- [ ] 没有排除不利 seed。
-- [ ] 最终配方在 test 前冻结。
-- [ ] 冻结清单写入进阶结果总账。
+- [x] 所有候选使用同一 split_seed。
+- [x] 每个配置完成预注册的全部 seed。
+- [x] 聚合结果可追溯到单次 run。
+- [x] 报告 mean、sample std 和原始值。
+- [x] 没有排除不利 seed。
+- [x] 最终配方在 test 前冻结。
+- [x] 冻结清单写入进阶结果总账。
+
+实际比较 R0 与 R3，各保留全部三个 train seed；基准锚点未扩为三 seed。配对统计与冻结清单见 [STAGE_13_NOTES.md](STAGE_13_NOTES.md)及 [ADVANCED_MINIVIT_FINAL.md](ADVANCED_MINIVIT_FINAL.md)。
 
 ## 11. 阶段 14：效率与资源基准
 
@@ -507,14 +513,16 @@ s = sqrt(sum((x_i - mean)^2) / (n - 1))
 
 ### 11.3 验收
 
-- [ ] 参数量与已有结果一致。
-- [ ] FLOPs 约定记录清楚。
-- [ ] benchmark 包含 warmup、同步和重复。
-- [ ] latency 报告 p50/p95。
-- [ ] throughput 写明 batch 与 precision。
-- [ ] 显存区分训练和推理。
-- [ ] 原始测量保存为 CSV/JSON。
-- [ ] 结论同时讨论精度和成本。
+- [x] 参数量与已有结果一致。
+- [x] FLOPs/MACs 计数约定记录清楚。
+- [x] benchmark 包含 warmup、同步和重复。
+- [x] latency 报告 p50/p95。
+- [x] throughput 写明 batch 与 precision。
+- [x] 显存区分训练和推理。
+- [x] 原始测量保存为 CSV/JSON。
+- [x] 结论同时讨论精度和成本。
+
+CNN、基础与进阶 MiniViT 的固定硬件 FP32/AMP 测量已完成；MACs 与计时口径不能混用，见 [STAGE_14_NOTES.md](STAGE_14_NOTES.md)。
 
 ## 12. 阶段 15：相机扰动与域偏移
 
@@ -549,13 +557,15 @@ small translation
 
 ### 12.3 验收
 
-- [ ] corruption 不改变标签和样本数量。
-- [ ] 同一 corruption seed 生成相同输入。
-- [ ] severity 单调增强并完成图像验收。
-- [ ] corrupted validation/test 隔离。
-- [ ] 三个模型使用相同 corruption 输入。
-- [ ] 同时报告 clean、各扰动和最坏情况。
-- [ ] 结论不超出所测范围。
+- [x] corruption 不改变标签和样本数量。
+- [x] 同一 corruption seed 生成相同输入。
+- [x] severity 的预设扰动强度逐级增加并完成图像验收（不要求模型准确率逐级单调下降）。
+- [x] corrupted validation/test 隔离。
+- [x] 三个模型使用相同 corruption 输入。
+- [x] 同时报告 clean、各扰动和最坏情况。
+- [x] 结论不超出所测范围。
+
+已完成六类扰动、各三强度及 seed 42 的三个冻结模型比较，未新增鲁棒性训练；协议与完整结果见 [STAGE_15_NOTES.md](STAGE_15_NOTES.md)。
 
 不要把 Gaussian Blur 直接称为真实运动模糊；不同模型也不能各自随机生成一套噪声。
 
@@ -680,7 +690,7 @@ test 前写入冻结清单：
 - Git commit；
 - 最终图表清单。
 
-一次性生成：
+最终汇总（复用阶段 14–17 的冻结产物，只补齐两个 train seed 的 clean test，不重复整套评估）：
 
 - clean CIFAR-10 多 seed test mean ± std；
 - corrupted test 各扰动与 severity；
@@ -708,7 +718,7 @@ test 前写入冻结清单：
 
 项目包装：
 
-- 更新 README 的 Advanced Experiments；
+- 更新 README 的进阶实验结果；
 - 完成 ADVANCED_EXPERIMENT_RESULTS.md；
 - 给出复现命令与资源预算；
 - 准备 60 秒项目介绍；
@@ -787,4 +797,4 @@ test 前写入冻结清单：
 
 阶段 10–18 已完成，阶段 18 于 2026-10-11 通过带历史追溯例外的最终验收。不再新增正式训练或根据 test 调参。
 
-独立验收环境位于 Git 忽略的 `outputs/stage18_acceptance/`；核查权重、预测明细和仓库候选文件的记录见 [evidence_audit.json](../assets/advanced/stage18/evidence_audit.json)。项目所有者已接受基础旧测试缺原运行 commit 的历史例外；未知字段继续保留，不能用归档 commit 冒充。验收不包含从零下载的干净克隆、GitHub 上传、release 或许可证选择。详细记录见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。
+独立验收环境位于 Git 忽略的 `outputs/stage18_acceptance/`；核查权重、预测明细和仓库候选文件的记录见 [evidence_audit.json](../assets/advanced/stage18/evidence_audit.json)。项目所有者已接受基础旧测试缺原运行 commit 的历史例外；未知字段继续保留，不能用归档 commit 冒充。技术验收后，代码、轻量结果与文档已提交并上传 GitHub；仍未完成从零下载的干净克隆、完整数据/权重分发、release 或许可证选择。详细记录见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。

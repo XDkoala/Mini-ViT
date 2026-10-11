@@ -2,6 +2,8 @@
 
 复现分为查看已保存证据、使用原始冻结 checkpoint 推理，以及重新训练新实验三种情况。`data/` 和 `outputs/` 不进入 Git，克隆仓库不等于已经获得数据或权重；重新训练也不能保证文件哈希或指标逐位相同。
 
+当前状态（2026-10-11）：阶段 0–18 已完成并上传 GitHub。本指南区分已验证的本地入口与尚未验证的从零数据/权重获取，不把仓库发布等同于完整实验产物分发。
+
 ## 1 环境与前置条件
 
 历史验收环境为 Windows、Python 3.14、PyTorch 2.14.0+cu130、torchvision 0.29.0+cu130 和 RTX 5060 Laptop GPU。`requirements.txt` 固定 CUDA 13.0 wheel 与主要依赖版本，传递依赖未逐项锁定；其他系统或没有兼容 CUDA 驱动时，不保证该清单可直接安装。2026-10-11 已在独立新环境按该清单安装成功，完整包版本见[环境验收 JSON](../assets/advanced/stage18/environment_acceptance.json)。
@@ -12,6 +14,7 @@
 py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m pip check
 python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
 ```
 
@@ -46,7 +49,7 @@ python -m scripts.predict --checkpoint outputs/advanced/stage16/formal/fine_tune
 
 ## 4 在独立目录启动新实验
 
-以下命令只供用户主动启动，不在整理报告时执行。CIFAR-10 应已准备在 `data/`；缺失时数据接口会尝试下载，受网络与证书影响。不要复用原实验输出目录。
+以下命令只供用户主动启动，不在整理报告时执行。CIFAR-10 应已准备在 `data/`；缺失时数据接口会尝试下载，受网络与证书影响。不要复用原实验输出目录。示例目录如已存在，应换一个新名称；只有明确续训才复用运行目录。
 
 ```powershell
 # Isolated smoke, excluded from formal statistics. / 独立冒烟，不进入正式统计。
@@ -67,7 +70,9 @@ CORe50 原始归档与解压目录按[数据卡](DATASET_CARD.md)准备。准备
 python -m scripts.prepare_core50 --manifest data/core50/manifests/reproduction.csv --summary outputs/reproduction/core50_dataset_summary.json
 ```
 
-迁移正式入口为 `python -m scripts.train_transfer --config configs/advanced/stage16/fine_tune.yaml --output-dir outputs/reproduction/core50_fine_tune`。它要求数据 manifest 和**原始冻结源域权重**满足配置哈希。如果使用自己新训练的源模型，需建立新的迁移配置，记录新 source checkpoint 与哈希，并对 Scratch/Probe/Fine-tune 一起冻结；不能假定新权重会匹配历史文件哈希。
+注意：上面的新 manifest 路径不会自动被原始迁移 YAML 使用。原配置的 `data.manifest` 指向 `data/core50/manifests/stage16_core50.csv`。若使用 `reproduction.csv`，先复制迁移 YAML 为新的复现配置，修改 `data.manifest`，并将其实际 SHA-256 写入 `data.manifest_sha256`；不要修改历史配置或降低哈希校验要求。可用 PowerShell 的 `Get-FileHash data/core50/manifests/reproduction.csv -Algorithm SHA256` 核对。
+
+原始配置的迁移入口为 `python -m scripts.train_transfer --config configs/advanced/stage16/fine_tune.yaml --output-dir outputs/reproduction/core50_fine_tune`，仅在其指定的原 manifest 与**原始冻结源域权重**均存在且哈希匹配时可直接使用。采用新 manifest 时，必须将命令的 `--config` 换成上一步创建的复现配置。如果使用自己新训练的源模型，还需记录新 source checkpoint 与哈希，并对 Scratch/Probe/Fine-tune 一起冻结；不能假定新权重会匹配历史文件哈希。
 
 阶段 14–18 的 benchmark、corruption 和最终 test 入口均使用冻结协议，主要用于复核既定运行。特别是 `python -m scripts.final_evaluation` 已执行并拒绝覆盖；不把它作为每次实验都要重跑的通用命令。
 
@@ -91,4 +96,6 @@ python -m pytest -q -p no:cacheprovider --basetemp outputs/reproduction_pytest_t
 
 `--basetemp` 是 pytest 专用目录，重复使用时会清理其旧内容，不能指向模型目录或重要文件。若系统临时目录受限，将当前进程的 `TEMP`/`TMP` 指向 `outputs/` 下另一个专用临时目录；不修改全局环境变量。
 
-原环境和独立新环境的全量回归均为 **479 passed**；新环境还通过依赖检查、2轮受限冒烟和单图推理。验证复用了本地数据及原始 checkpoint，不等同于干净克隆后从零获取数据/权重；主要入口已验证，不表示每组正式长训练都重跑。远程权重获取、GitHub 上传与 release 未执行。代码许可证需由项目所有者选择；数据来源与归属见数据卡，不能把代码许可自动套用于数据或数据派生样例。
+2026-10-11 原环境和独立新环境的全量回归均为 **479 passed**；新环境还通过依赖检查、2轮受限冒烟和单图推理。验证复用了本地数据及原始 checkpoint，不等同于干净克隆后从零获取数据/权重；主要入口已验证，不表示每组正式长训练都重跑。记录见[环境验收 JSON](../assets/advanced/stage18/environment_acceptance.json)。
+
+代码、轻量结果和文档已提交并上传 GitHub。完整数据与 checkpoint 未分发，远程权重获取未验收，也未创建 release。7 组基础旧评估缺原运行 commit 的历史例外已由项目所有者接受，详见[证据核验记录](../assets/advanced/stage18/evidence_audit.json)。代码许可证需由项目所有者选择；数据来源与归属见数据卡，不能把代码许可自动套用于数据或数据派生样例。

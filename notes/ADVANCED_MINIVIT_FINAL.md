@@ -62,7 +62,7 @@ regularization:
 - validation 负责配方选择，test 不参与调参；
 - 阶段 14–17 不因 clean test 表现更改模型配方；
 - 阶段 15 已在冻结扰动协议后完成 seed 42 checkpoint 的 clean/corrupted test；不得据此修改模型或 severity；
-- 阶段 18 复用 seed 42 clean test，并只补评估 seed 123/2026 的冻结 best checkpoint，最终报告三个 seed 的 mean 与 sample std；
+- 阶段 18 已复用 seed 42 clean test，并只补评估 seed 123/2026 的冻结 best checkpoint，最终报告三个 seed 的 mean 与 sample std；
 - test 结果无论好坏都必须完整保留，不能删除不利 seed 或另加 seed 改善均值。
 
 ## 4. 冻结统计
@@ -95,3 +95,9 @@ advanced seed-42 worst：25.80%，gaussian_noise severity 3
 | `assets/advanced/stage15/robustness_raw.json` | `85767358715E3545F3D7DEBC52D566A601752CBFB01268FC9304CEE6CEE7ED04` |
 
 这些结果是在 clean worktree 上生成的正式 frozen-test 产物。后续分析可以读取，但不得重跑后挑选更有利输出或覆盖原文件。
+
+## 6. 阶段 18 最终 clean test（已完成）
+
+2026-10-11，seeds 123、2026 从 clean commit `2ed2a93fb105f7518dd360adf105f334c8f02238` 补一次完整官方 test，seed 42 复用阶段 15。三个准确率依次为 **86.38%、86.32%、86.08%**，均值与样本标准差为 **86.260 ± 0.159%**，不是置信区间。
+
+评估 commit 与训练 Source Commit 的作用不同，不能相互替代。原始汇总见 [clean_test_summary.json](../assets/advanced/stage18/clean_test_summary.json)，SHA-256 为 `4B3CA6FC3EAED43408B5286F4D8385FB74227C068C8C2CE3127927CF39D7569C`。本节补充最终评估状态，不修改上面的冻结配方、checkpoint 身份或阶段 15 哈希。
