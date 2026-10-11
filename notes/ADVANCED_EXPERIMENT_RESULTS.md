@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–16 已完成；阶段 16 的迁移训练、validation 分析和冻结 test 评估均已记录
+当前状态：阶段 11–16 的实验已记录；阶段 17 的 Rollout 与单图推理工具也已完成
 
 ## 1. 记录规则
 
@@ -172,7 +172,13 @@ Fine-tune 比 Scratch 高 17.64 pp；三组最佳准确率排序符合实验前�
 
 三组均有明显的数值下降；这里未做统计显著性检验。s3、s7、s10 的难度也不同，不应把 s8 的验证准确率直接当作稳定跨 session 性能。完整逐类和错误案例见 [STAGE_16_NOTES.md](STAGE_16_NOTES.md)，详细 JSON 留存在 `assets/advanced/stage16/`。原始测试产物 `outputs/advanced/stage16/evaluation/test_v1/summary.json` 的 SHA-256 为 `d62d7c3b37dad95e908a2b8b752a89934130252424631d3534db191184920eb1`。
 
-## 12. 后续更新要求
+## 12. 阶段 17：Rollout 与推理工具
+
+本阶段没有新增正式训练或整体 test 指标。冻结的 advanced MiniViT 与 CORe50 Fine-tune 各生成两个 clean 正确、两个 clean 错误验证案例；同图配对 Gaussian noise S2，比较末层 Attention 与 Rollout。四张对照图、原始样本和 16 行完整诊断记录保存于 `assets/advanced/stage17/`，选择规则与 checkpoint 哈希固定在 `configs/advanced/stage17/diagnostics.yaml`。
+
+单图入口 `scripts/predict.py` 根据 checkpoint 使用对应类别和预处理，CPU/CUDA 均已实际运行；完整测试 463 passed。案例不作为新的整体性能证据，热图也不作为因果解释。代码职责、命令与观察见 [STAGE_17_NOTES.md](STAGE_17_NOTES.md)。
+
+## 13. 后续更新要求
 
 每组正式实验结束后：
 

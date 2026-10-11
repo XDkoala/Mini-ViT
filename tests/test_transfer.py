@@ -246,6 +246,39 @@ def test_linear_probe_attention_output_remains_available(
     assert attention.shape == (2, 2, 5, 5)
 
 
+def test_linear_probe_all_attention_layers_preserve_freeze():
+    """Linear Probe 收集全部层时 encoder 仍冻结，分类头仍可反传。"""
+
+    model = TransferMiniViT(
+        transfer_mode="linear_probe",
+        image_size=8,
+        patch_size=4,
+        embed_dim=8,
+        depth=2,
+        num_heads=2,
+        mlp_dim=16,
+        dropout=0.2,
+    )
+    model.train()
+    images = torch.randn(2, 3, 8, 8)
+
+    logits, attention = model(
+        images,
+        return_attention=True,
+        attention_layers="all",
+    )
+    logits.sum().backward()
+
+    assert attention.shape == (2, 2, 2, 5, 5)
+    assert not attention.requires_grad
+    assert model.classifier.weight.grad is not None
+    assert all(
+        parameter.grad is None
+        for _, parameter in model.encoder_named_parameters()
+    )
+    assert not model.blocks.training
+
+
 def test_pretrained_mode_rejects_encoder_architecture_mismatch(
     tmp_path: Path,
 ) -> None:

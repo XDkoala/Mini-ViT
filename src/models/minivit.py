@@ -1,5 +1,7 @@
 """Mini Vision Transformer components."""
 
+from typing import Literal
+
 import torch
 from torch import Tensor, nn
 
@@ -638,8 +640,16 @@ class MiniViT(nn.Module):
         self,
         images: Tensor,
         return_attention: bool = False,
+        attention_layers: Literal["last", "all"] = "last",
     ) -> Tensor | tuple[Tensor, Tensor]:
-        """Encode images into final CLS representations."""
+        """Encode images; optionally return last or all attention layers."""
+
+        if attention_layers not in ("last", "all"):
+            raise ValueError("attention_layers must be 'last' or 'all'.")
+        if attention_layers == "all" and not return_attention:
+            raise ValueError(
+                "attention_layers='all' requires return_attention=True."
+            )
 
         # 输入必须是：[batch, channel, height, width]
         if images.ndim != 4:
@@ -698,18 +708,21 @@ class MiniViT(nn.Module):
         # [B, N, D] + [1, N, D] -> [B, N, D]
         tokens = tokens + self.position_embedding
 
-        # 普通模式只传递 tokens；可视化模式额外保留最后一层 Attention。
-        last_attention: Tensor | None = None
+        # 普通模式不收集权重；末层模式仅取最后一层；Rollout 模式取全部层。
+        collected_attention: list[Tensor] = []
 
         # 进入核心循环
         for block_index, block in enumerate(self.blocks):
             is_last_block = block_index == len(self.blocks) - 1
-            # 最后一层单独处理，只返回最后一层的注意力权重
-            if return_attention and is_last_block:
-                tokens, last_attention = block(
+            collect_this_block = return_attention and (
+                attention_layers == "all" or is_last_block
+            )
+            if collect_this_block:
+                tokens, block_attention = block(
                     tokens,
                     return_attention=True,
                 )
+                collected_attention.append(block_attention)
             else:
                 tokens = block(tokens)
 
@@ -722,12 +735,17 @@ class MiniViT(nn.Module):
         cls_representation = tokens[:, 0, :]
 
         if return_attention:
-            if last_attention is None:
+            expected_count = (
+                len(self.blocks) if attention_layers == "all" else 1
+            )
+            if len(collected_attention) != expected_count:
                 raise RuntimeError(
-                    "last attention weights were not produced."
+                    "expected attention weights were not produced."
                 )
-
-            return cls_representation, last_attention
+            if attention_layers == "all":
+                # [L, B, H, N, N]，L 按 Encoder Block 从浅到深排列。
+                return cls_representation, torch.stack(collected_attention)
+            return cls_representation, collected_attention[0]
 
         return cls_representation
 
@@ -735,18 +753,23 @@ class MiniViT(nn.Module):
         self,
         images: Tensor,
         return_attention: bool = False,
+        attention_layers: Literal["last", "all"] = "last",
     ) -> Tensor | tuple[Tensor, Tensor]:
         """Convert an image batch into classification logits."""
 
         if return_attention:
-            cls_representation, last_attention = self.forward_features(
+            cls_representation, attention = self.forward_features(
                 images,
                 return_attention=True,
+                attention_layers=attention_layers,
             )
             logits = self.classifier(cls_representation)
-            return logits, last_attention
+            return logits, attention
 
-        cls_representation = self.forward_features(images)
+        cls_representation = self.forward_features(
+            images,
+            attention_layers=attention_layers,
+        )
         logits = self.classifier(cls_representation)
 
         return logits

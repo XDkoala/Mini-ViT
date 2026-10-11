@@ -1,8 +1,10 @@
-+# Mini ViT：从零实现 Vision Transformer 并完成 CIFAR-10 实验
+# Mini ViT：从零实现 Vision Transformer 并完成 CIFAR-10 实验
 
 这是一个面向学习与实验复现的 PyTorch 项目：不调用现成 ViT 模型，而是从零实现 Patch Embedding、Multi-Head Self-Attention、MLP、Transformer Encoder Block、CLS token、位置编码和分类头，并在 CIFAR-10 上完成训练、CNN 对照、三组消融实验、最终测试和注意力可视化。
 
 项目强调的不是堆叠训练技巧或追求最高精度，而是建立一条正确、可运行、可解释、可测试、可复现的深度学习工程链路。
+
+基础结果保留如下。进阶部分已完成优化、正则化、多 seed 对照、效率与扰动评估、CORe50 迁移以及 Attention Rollout/单图推理；结果见 [进阶实验总账](notes/ADVANCED_EXPERIMENT_RESULTS.md)，使用说明见 [阶段 17 笔记](notes/STAGE_17_NOTES.md)。
 
 ## 项目亮点
 
@@ -387,6 +389,22 @@ training:
 
 `device: auto` 优先使用 CUDA，否则退回 CPU。Windows 下默认 `num_workers: 0`，减少多进程 DataLoader 的兼容问题。
 
+## 单图推理与 Attention Rollout
+
+checkpoint 决定 CIFAR-10 或 CORe50 的类别映射和预处理。以下命令使用已保存的 CORe50 验证案例；也可以将 `--image` 换成自己的图片路径。
+
+```powershell
+python -m scripts.predict --checkpoint outputs/advanced/stage16/formal/fine_tune/train_42/best.pt --image assets/advanced/stage17/samples/core50_fine_tune_correct_1.png --top-k 5 --attention both --device auto --output-dir outputs/predictions/core50_demo
+```
+
+`--attention` 可选 `none`、`last`、`rollout`、`both`，`--device` 可选 `auto`、`cpu`、`cuda`。输出包含 top-k、预处理说明、checkpoint SHA-256、`prediction.json` 和可选 `attention.png`。推理只需要 checkpoint 与图片，不需要源域 checkpoint 或完整数据集。热图使用各自的相对色彩缩放，注意力与 Rollout 均不构成因果解释。
+
+固定的正确/错误、clean/corrupted、末层/Rollout 对照图位于 [阶段 17 产物](assets/advanced/stage17/)，只从验证集选案例。重建命令：
+
+```powershell
+python -m scripts.visualize_rollout --config configs/advanced/stage17/diagnostics.yaml
+```
+
 ## 测试与质量保证
 
 自动化测试主要验证：
@@ -423,21 +441,19 @@ python -m pytest tests/test_visualization.py -q
 
 ## 已知限制
 
-- 每个正式配置只运行一个随机种子，无法估计均值与方差。
-- 未使用学习率 warmup、scheduler、AMP、Mixup、CutMix 或 label smoothing。
-- 没有报告 FLOPs、吞吐量、单张延迟和峰值显存。
-- 数据集只有 CIFAR-10，结论不能直接推广到 ImageNet 或真实机器人视觉。
-- Attention 热力图不是因果解释，也不是完整的 Attention Rollout。
-- 当前目标是基础工程闭环，不包含部署、Web Demo、目标检测或分割。
+- 基础消融与 CORe50 迁移主要为单 seed；进阶配方虽有三 seed 对照，仍不足以代表所有随机性与数据划分。
+- 效率基准绑定当前硬件、软件版本与输入大小，不能直接推广到其他设备。
+- CORe50 使用同物体不同 session 的划分，尚未证明新物体实例泛化。
+- CIFAR-10 与 CORe50 均使用 32×32 输入，部分细节会被缩放丢失。
+- Attention 与 Rollout 是描述性可视化，softmax 分数未经概率校准。
+- 推理入口为 CLI，尚不包含生产部署、目标检测或分割。
 
 ## 后续方向
 
-1. 使用 3 个以上随机种子报告均值与标准差。
-2. 加入 warmup + cosine decay，单独记录为新实验协议。
-3. 比较 Mixup、CutMix 与 label smoothing。
-4. 统计 FLOPs、吞吐量、延迟和显存占用。
-5. 与标准 ResNet-18 或更成熟的小图像 ViT 方法比较。
-6. 在第一视角或具身视觉数据上进行迁移学习与域偏移分析。
+1. 完成阶段 18 的最终冻结报告与项目包装。
+2. 将目标域学习率、分辨率和新实例划分注册为新的迁移实验。
+3. 增加 seed 或独立数据划分，检验观察到的优势是否稳定。
+4. 与标准 ResNet-18 或更成熟的小图像 ViT 方法比较。
 
 后续实验应建立新的验证协议，不应覆盖当前冻结的基础结果，也不应反复利用 CIFAR-10 test split 调参。
 
@@ -446,6 +462,8 @@ python -m pytest tests/test_visualization.py -q
 - [基础项目工作流](notes/BASIC_PROJECT_WORKFLOW.md)
 - [进阶项目工作流（阶段 10–18）](notes/ADVANCED_PROJECT_WORKFLOW.md)
 - [阶段 10：进阶实验协议与基础设施](notes/STAGE_10_NOTES.md)
+- [阶段 16：CORe50 迁移学习](notes/STAGE_16_NOTES.md)
+- [阶段 17：Attention Rollout 与单图推理](notes/STAGE_17_NOTES.md)
 - [阶段 0：环境与项目骨架](notes/STAGE_0_NOTES.md)
 - [阶段 1：CIFAR-10 数据管线](notes/STAGE_1_NOTES.md)
 - [阶段 2：MiniViT 基础零件](notes/STAGE_2_NOTES.md)

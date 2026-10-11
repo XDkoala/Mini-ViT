@@ -1,0 +1,18 @@
+device: auto
+selection:
+  cases_per_status: 2
+  max_samples: 512
+  batch_size: 32
+  rule: first_correct_and_wrong_with_distinct_true_labels
+corruption:
+  name: gaussian_noise
+  severity: 2
+  seed: 1501
+candidates:
+  - name: advanced_minivit_final
+    checkpoint: outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt
+    sha256: d7d1f42c5de6bb742a1196e70d16b49cdb45b79f986c69f65477fd65e7db7309
+  - name: core50_fine_tune
+    checkpoint: outputs/advanced/stage16/formal/fine_tune/train_42/best.pt
+    sha256: 14e52af049050e20550507feff08bc79874edf66a1b544778972629089b95841
+output_dir: assets/advanced/stage17

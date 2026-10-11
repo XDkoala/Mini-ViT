@@ -6,7 +6,7 @@ import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ContextManager
+from typing import ContextManager, Literal
 
 import torch
 from torch import Tensor, nn
@@ -102,6 +102,7 @@ class TransferMiniViT(MiniViT):
         self,
         images: Tensor,
         return_attention: bool = False,
+        attention_layers: Literal["last", "all"] = "last",
     ) -> Tensor | tuple[Tensor, Tensor]:
         """Run the encoder with no graph only in linear-probe mode."""
 
@@ -114,6 +115,7 @@ class TransferMiniViT(MiniViT):
             encoded = self.forward_features(
                 images,
                 return_attention=return_attention,
+                attention_layers=attention_layers,
             )
 
         if return_attention:

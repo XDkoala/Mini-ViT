@@ -495,6 +495,67 @@ def test_minivit_custom_configuration():
     assert attention_weights.shape == (3, 2, 17, 17)
 
 
+def test_minivit_all_attention_layers_preserve_existing_outputs():
+    """全部层按浅到深返回；默认与旧的末层接口仍保持原样。"""
+
+    model = MiniViT(
+        image_size=8,
+        patch_size=4,
+        embed_dim=8,
+        depth=3,
+        num_heads=2,
+        mlp_dim=16,
+        dropout=0.0,
+    ).eval()
+    images = torch.randn(2, 3, 8, 8)
+
+    with torch.no_grad():
+        plain_logits = model(images)
+        last_logits, last_attention = model(images, return_attention=True)
+        all_logits, all_attention = model(
+            images,
+            return_attention=True,
+            attention_layers="all",
+        )
+        features, feature_attention = model.forward_features(
+            images,
+            return_attention=True,
+            attention_layers="all",
+        )
+
+    assert all_attention.shape == (3, 2, 2, 5, 5)
+    assert torch.allclose(plain_logits, last_logits)
+    assert torch.allclose(plain_logits, all_logits)
+    assert torch.allclose(all_attention[-1], last_attention)
+    assert torch.allclose(all_attention, feature_attention)
+    assert torch.allclose(model.classifier(features), all_logits)
+    assert torch.isfinite(all_attention).all()
+    assert torch.allclose(
+        all_attention.sum(dim=-1),
+        torch.ones_like(all_attention.sum(dim=-1)),
+        atol=1e-6,
+    )
+
+
+def test_minivit_rejects_inconsistent_attention_request():
+    """无效层模式或未请求权重却指定全部层时应明确报错。"""
+
+    model = MiniViT(
+        image_size=8,
+        patch_size=4,
+        embed_dim=8,
+        depth=1,
+        num_heads=2,
+        mlp_dim=16,
+    )
+    image = torch.randn(1, 3, 8, 8)
+
+    with pytest.raises(ValueError, match="requires return_attention"):
+        model(image, attention_layers="all")
+    with pytest.raises(ValueError, match="must be 'last' or 'all'"):
+        model(image, return_attention=True, attention_layers="invalid")
+
+
 # CLS、位置编码必须注册为参数，各 Encoder Block 必须是独立实例。
 def test_minivit_registers_special_parameters_and_independent_blocks():
     """Verify special parameter registration and independent encoder layers."""

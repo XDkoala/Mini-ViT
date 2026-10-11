@@ -327,27 +327,89 @@ def plot_error_cases(
     return figure
 
 
-def attention_to_heatmaps(
-    attention: Tensor,
+def attention_rollout(all_attention: Tensor) -> Tensor:
+    """Return final CLS-to-patch path weights from all attention layers.
+
+    Input: [layers, batch, heads, tokens, tokens].
+    Output: [batch, patch_tokens]. The CLS self-path is excluded, not
+    redistributed across patches.
+    """
+    if all_attention.ndim != 5:
+        raise ValueError(
+            "all_attention must have shape [layers, batch, heads, tokens, tokens]."
+        )
+    layers, batch, heads, tokens, key_tokens = all_attention.shape
+    if min(layers, batch, heads) <= 0 or tokens < 2 or tokens != key_tokens:
+        raise ValueError("all_attention must have non-empty square token maps.")
+    if not all_attention.is_floating_point():
+        raise ValueError("all_attention must contain floating-point weights.")
+    if not torch.isfinite(all_attention).all():
+        raise ValueError("all_attention must contain only finite weights.")
+    if (all_attention < 0).any():
+        raise ValueError("all_attention weights must be non-negative.")
+    row_sums = all_attention.sum(dim=-1)
+    if not torch.allclose(
+        row_sums, torch.ones_like(row_sums), atol=1e-4, rtol=1e-4
+    ):
+        raise ValueError("all_attention rows must sum to one.")
+
+    # 各头先等权平均；半精度权重升到 float32，避免多层连乘累计舍入误差。
+    weights = (
+        all_attention.float()
+        if all_attention.dtype in (torch.float16, torch.bfloat16)
+        else all_attention
+    )
+    mean_attention = weights.mean(dim=2)  # [L, B, N, N]
+    identity = torch.eye(
+        tokens, dtype=mean_attention.dtype, device=mean_attention.device
+    )
+
+    # x + Attention(x) 有一条原 token 保留路径；用 I 近似，再按行归一化。
+    adjusted = mean_attention + identity
+    adjusted = adjusted / adjusted.sum(dim=-1, keepdim=True)
+
+    # 后层在左：R_l = A_l @ R_(l-1)。不能反过来相乘。
+    joint = identity.expand(batch, -1, -1)
+    for layer_attention in adjusted:
+        joint = layer_attention @ joint
+
+    # 行 0 是最终 CLS；列 1: 是原始 patch。保留 CLS 自身路径不重分配。
+    return joint[:, 0, 1:]
+
+
+def patch_weights_to_heatmaps(
+    patch_weights: Tensor,
     image_size: int,
 ) -> Tensor:
-    """Convert final-layer CLS-to-patch attention into image-sized maps."""
-    if attention.ndim != 4:
-        raise ValueError("attention must have shape [batch, heads, tokens, tokens].")
-    if attention.shape[-1] != attention.shape[-2]:
-        raise ValueError("attention token dimensions must be square.")
+    """Turn CLS-to-patch weights into relative, image-sized display maps.
+
+    The output is independently min-max scaled per image; it is not the
+    original attention/rollout probability mass.
+    """
+    if patch_weights.ndim != 2:
+        raise ValueError("patch_weights must have shape [batch, patch_tokens].")
+    batch, patch_count = patch_weights.shape
+    if batch <= 0 or patch_count <= 0:
+        raise ValueError("patch_weights must contain images and patch tokens.")
+    if not patch_weights.is_floating_point():
+        raise ValueError("patch_weights must contain floating-point values.")
+    if not torch.isfinite(patch_weights).all():
+        raise ValueError("patch_weights must contain only finite values.")
+    if (patch_weights < 0).any():
+        raise ValueError("patch_weights must be non-negative.")
     if image_size <= 0:
         raise ValueError("image_size must be greater than zero.")
-
-    patch_count = attention.shape[-1] - 1
     grid_size = math.isqrt(patch_count)
     if grid_size * grid_size != patch_count:
         raise ValueError("patch token count must form a square image grid.")
 
-    # token 0 是 CLS；列 1: 是所有图像 patch。先对多个 head 求平均，
-    # 得到每张图一个 patch 网格，再放大到原图分辨率。
-    cls_to_patch = attention[:, :, 0, 1:].mean(dim=1)
-    patch_maps = cls_to_patch.reshape(-1, 1, grid_size, grid_size)
+    # CLS 已由上游剔除；按 patch 顺序恢复二维网格，插值只负责显示。
+    display_weights = (
+        patch_weights.float()
+        if patch_weights.dtype in (torch.float16, torch.bfloat16)
+        else patch_weights
+    )
+    patch_maps = display_weights.reshape(batch, 1, grid_size, grid_size)
     heatmaps = functional.interpolate(
         patch_maps,
         size=(image_size, image_size),
@@ -362,6 +424,21 @@ def attention_to_heatmaps(
     return (heatmaps - minimum) / (maximum - minimum).clamp_min(1e-12)
 
 
+def attention_to_heatmaps(
+    attention: Tensor,
+    image_size: int,
+) -> Tensor:
+    """Convert final-layer CLS-to-patch attention into image-sized maps."""
+    if attention.ndim != 4:
+        raise ValueError("attention must have shape [batch, heads, tokens, tokens].")
+    if attention.shape[-1] != attention.shape[-2]:
+        raise ValueError("attention token dimensions must be square.")
+
+    # 旧接口保持不变：先对末层各 head 求平均，再共用同一显示转换。
+    cls_to_patch = attention[:, :, 0, 1:].mean(dim=1)
+    return patch_weights_to_heatmaps(cls_to_patch, image_size)
+
+
 def plot_attention_overlays(
     images: Tensor,
     heatmaps: Tensor,
@@ -370,10 +447,28 @@ def plot_attention_overlays(
     alpha: float = 0.55,
 ) -> Figure:
     """Show each original image beside its final-layer attention overlay."""
+    return plot_attention_comparison(
+        images, {"Final-block CLS attention": heatmaps}, records, title, alpha
+    )
+
+
+def plot_attention_comparison(
+    images: Tensor,
+    heatmaps: Mapping[str, Tensor],
+    records: Sequence[Mapping[str, object]],
+    title: str,
+    alpha: float = 0.55,
+) -> Figure:
+    """Compare named methods on the exact normalized model-input images."""
     if images.ndim != 4 or images.shape[1] != 3:
         raise ValueError("images must have shape [batch, 3, height, width].")
-    if heatmaps.ndim != 3 or heatmaps.shape[0] != images.shape[0]:
-        raise ValueError("heatmaps must have shape [batch, height, width].")
+    if not heatmaps:
+        raise ValueError("At least one named heatmap method is required.")
+    for method, maps in heatmaps.items():
+        if not method or maps.shape != (len(images), *images.shape[-2:]):
+            raise ValueError("heatmaps must match batch and image dimensions.")
+        if not torch.isfinite(maps).all() or (maps < 0).any() or (maps > 1).any():
+            raise ValueError("Display heatmaps must be finite values in [0,1].")
     if len(records) != len(images) or not records:
         raise ValueError("images and non-empty records must have equal length.")
     if not 0.0 <= alpha <= 1.0:
@@ -381,37 +476,39 @@ def plot_attention_overlays(
 
     figure, axes = plt.subplots(
         len(records),
-        2,
-        figsize=(6.5, 2.8 * len(records)),
+        1 + len(heatmaps),
+        figsize=(3.3 * (1 + len(heatmaps)), 2.8 * len(records) + 0.6),
         squeeze=False,
     )
 
     for index, record in enumerate(records):
         image = denormalize_image(images[index])
         image_array = image.detach().cpu().permute(1, 2, 0).numpy()
-        heatmap = heatmaps[index].detach().cpu().numpy()
-        status = "correct" if bool(record["correct"]) else "wrong"
-        description = (
-            f"True: {record['true_class']} | "
-            f"Pred: {record['predicted_class']} "
-            f"({float(record['confidence']):.1%}, {status})"
-        )
+        description = f"Pred: {record['predicted_class']} ({float(record['confidence']):.1%})"
+        if "true_class" in record:
+            status = "correct" if bool(record["correct"]) else "wrong"
+            description = f"True: {record['true_class']}\n{description}, {status}"
+        if "condition" in record:
+            description += f"\n{record['condition']}"
 
         axes[index, 0].imshow(image_array)
         axes[index, 0].set_title(description, fontsize=9)
         axes[index, 0].axis("off")
 
-        axes[index, 1].imshow(image_array)
-        axes[index, 1].imshow(
-            heatmap,
-            cmap="jet",
-            alpha=alpha,
-            vmin=0.0,
-            vmax=1.0,
-        )
-        axes[index, 1].set_title("Final-block CLS attention", fontsize=9)
-        axes[index, 1].axis("off")
+        for column, (method, maps) in enumerate(heatmaps.items(), start=1):
+            axes[index, column].imshow(image_array)
+            axes[index, column].imshow(
+                maps[index].detach().cpu().numpy(),
+                cmap="jet", alpha=alpha, vmin=0.0, vmax=1.0,
+            )
+            axes[index, column].set_title(method, fontsize=9)
+            axes[index, column].axis("off")
 
     figure.suptitle(title)
-    figure.tight_layout()
+    figure.text(
+        0.5, 0.015,
+        "Each map uses its own relative 0-1 scale. Descriptive attention; not causal attribution.",
+        ha="center", fontsize=9,
+    )
+    figure.tight_layout(rect=(0, 0.04, 1, 0.97))
     return figure

@@ -11,6 +11,10 @@ from torchvision.datasets import CIFAR10
 # 通道均值与通道标准差（官方统计）
 CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
+CIFAR10_CLASS_NAMES = (
+    "airplane", "automobile", "bird", "cat", "deer",
+    "dog", "frog", "horse", "ship", "truck",
+)
 
 
 def _validate_data_seed(

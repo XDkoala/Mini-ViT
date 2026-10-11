@@ -1,0 +1,29 @@
+{
+  "split_seed": 42,
+  "sample_count": 10000,
+  "evaluator_blob": "4ce2edd171f61e2c579774a2efb98430b737389f",
+  "reuse_path": "assets/advanced/stage15/robustness_raw.json",
+  "reuse_sha256": "85767358715E3545F3D7DEBC52D566A601752CBFB01268FC9304CEE6CEE7ED04",
+  "output_dir": "outputs/advanced/stage18/clean_test",
+  "summary_path": "assets/advanced/stage18/clean_test_summary.json",
+  "checkpoints": [
+    {
+      "train_seed": 42,
+      "path": "outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt",
+      "sha256": "D7D1F42C5DE6BB742A1196E70D16B49CDB45B79F986C69F65477FD65E7DB7309",
+      "reuse": true
+    },
+    {
+      "train_seed": 123,
+      "path": "outputs/advanced/stage13/r3_cutmix05/split_42__train_123/best.pt",
+      "sha256": "9359EF01AF998F7A472662FD30001F0B39BD677A785434AA2FE5C47EDCA0B490",
+      "reuse": false
+    },
+    {
+      "train_seed": 2026,
+      "path": "outputs/advanced/stage13/r3_cutmix05/split_42__train_2026/best.pt",
+      "sha256": "8E40E191A5FA2385E68EE79616F3BB40A3BDF0C1D5DF2D277D95E0EDECC498C8",
+      "reuse": false
+    }
+  ]
+}

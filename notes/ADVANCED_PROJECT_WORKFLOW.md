@@ -4,7 +4,7 @@
 
 设计日期：2026-09-25
 
-当前状态：阶段 16 已完成；三组迁移实验、逐类 validation 和冻结 test 评估均已验收
+当前状态：阶段 17 已完成；阶段 18 已开始，冻结 checkpoint 与评估入口已核验，待补齐最终评估与报告。进度见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。
 
 ## 0. 进阶项目目标
 
@@ -651,15 +651,17 @@ python -m scripts.predict --checkpoint outputs/advanced/<run>/best.pt --image <i
 
 ### 14.3 验收
 
-- [ ] 普通 forward 向后兼容。
-- [ ] 可选模式返回全部层 attention。
-- [ ] 各层 attention 行归一化。
-- [ ] rollout 包含残差并重新归一化。
-- [ ] CLI 与正式评估使用相同预处理/类别映射。
-- [ ] top-k 排序正确。
-- [ ] CPU/CUDA 均可推理。
-- [ ] 图片注明方法与解释边界。
-- [ ] Demo 不复制模型逻辑或硬编码路径。
+- [x] 普通 forward 向后兼容。
+- [x] 可选模式返回全部层 attention。
+- [x] 各层 attention 行归一化。
+- [x] rollout 包含残差并重新归一化。
+- [x] CLI 与正式评估使用相同预处理/类别映射。
+- [x] top-k 排序正确。
+- [x] CPU/CUDA 均可推理。
+- [x] 图片注明方法与解释边界。
+- [x] Demo 不复制模型逻辑或硬编码路径。
+
+阶段 17 于 2026-10-11 完成。推理入口为 `scripts/predict.py`，共用逻辑为 `src/inference.py`；Gradio 为可选项，本版以 CLI 完成展示入口。两套模型各保存正确/错误、clean/noise、末层/Rollout 对照，均从 validation 选择。完整测试 463 passed；具体协议与命令见 [STAGE_17_NOTES.md](STAGE_17_NOTES.md)。
 
 ## 15. 阶段 18：冻结评估、报告与包装
 

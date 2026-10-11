@@ -9,8 +9,7 @@ from torch import nn
 from torch.optim import Optimizer
 
 from src.amp import build_amp_runtime
-from src.models.minivit import MiniViT
-from src.models.cnn import SimpleCNN
+from src.models import build_model
 from src.config import (
     CURRENT_FORMAT_VERSION,
     load_config,
@@ -100,31 +99,6 @@ def parse_args(
     )
 
     return parser.parse_args(argv)
-
-
-def build_model(
-    model_config: dict[str, object],
-    device: torch.device,
-) -> nn.Module:
-    """Build the configured model architecture and move it to a device."""
-
-    # 使用副本移除工厂专用的 name，避免修改原始配置快照，
-    # 也避免把 MiniViT/SimpleCNN 不认识的参数传给构造函数。
-    constructor_config = dict(model_config)
-    model_name = str(
-        constructor_config.pop("name", "minivit")
-    ).strip().lower()
-
-    if model_name == "minivit":
-        model = MiniViT(**constructor_config)
-    elif model_name == "cnn":
-        model = SimpleCNN(**constructor_config)
-    else:
-        raise ValueError(
-            "model.name must be one of: minivit, cnn."
-        )
-
-    return model.to(device)
 
 
 def build_optimizer(
