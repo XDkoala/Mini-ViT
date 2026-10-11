@@ -1,4 +1,9 @@
 {
+  "presentation_revision": {
+    "date": "2026-10-11",
+    "original_sha256": "79668F96888157C9970E1CB2BE8223D181456BEB28B075329ADA0373B2369D50",
+    "change": "Checkpoint display paths made project-relative; all predictions, maps and generation provenance unchanged."
+  },
   "created_at": "2026-10-11T03:42:01.595764+00:00",
   "config_sha256": "7defeed2573f53217d6ca64654ae388f0be66e037e3061ecbf63a8c48e7beb46",
   "source_sha256": {
@@ -35,7 +40,7 @@
   "candidates": [
     {
       "name": "advanced_minivit_final",
-      "checkpoint": "D:\\Desktop\\Mini ViT\\outputs\\advanced\\stage12\\formal\\r3_cutmix_alpha05\\split_42__train_42\\best.pt",
+      "checkpoint": "outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt",
       "checkpoint_sha256": "d7d1f42c5de6bb742a1196e70d16b49cdb45b79f986c69f65477fd65e7db7309",
       "checkpoint_epoch": 98,
       "experiment": "stage12_r3_cutmix_alpha05_split42_train42",
@@ -1288,7 +1293,7 @@
     },
     {
       "name": "core50_fine_tune",
-      "checkpoint": "D:\\Desktop\\Mini ViT\\outputs\\advanced\\stage16\\formal\\fine_tune\\train_42\\best.pt",
+      "checkpoint": "outputs/advanced/stage16/formal/fine_tune/train_42/best.pt",
       "checkpoint_sha256": "14e52af049050e20550507feff08bc79874edf66a1b544778972629089b95841",
       "checkpoint_epoch": 33,
       "experiment": "stage16_fine_tune_train42",

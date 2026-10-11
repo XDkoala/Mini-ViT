@@ -1,0 +1,271 @@
+{
+  "created_at_utc": "2026-10-11T04:53:20.411624+00:00",
+  "environment_path": "outputs/stage18_acceptance/venv",
+  "dependency_install": "Fresh venv, include-system-site-packages=false; pip install -r requirements.txt succeeded with approved network access and cached wheels.",
+  "requirements_sha256": "d3350a105dce0f020fe444ae28d5f92fa9603787359a683b299b833d8b5a1a39",
+  "runtime": {
+    "python": "3.14.0",
+    "isolated_dependencies": true,
+    "cuda_available": true,
+    "versions": {
+      "torch": "2.14.0+cu130",
+      "torchvision": "0.29.0+cu130",
+      "numpy": "2.5.2",
+      "yaml": "6.0.3",
+      "matplotlib": "3.11.1",
+      "sklearn": "1.9.0",
+      "pytest": "9.1.1"
+    }
+  },
+  "installed_packages": [
+    {
+      "name": "cloudpickle",
+      "version": "3.1.2"
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6"
+    },
+    {
+      "name": "contourpy",
+      "version": "1.4.0"
+    },
+    {
+      "name": "cycler",
+      "version": "0.12.1"
+    },
+    {
+      "name": "filelock",
+      "version": "4.1.0"
+    },
+    {
+      "name": "fonttools",
+      "version": "4.66.1"
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.9.0"
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.1"
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6"
+    },
+    {
+      "name": "joblib",
+      "version": "1.6.0"
+    },
+    {
+      "name": "kiwisolver",
+      "version": "1.5.1"
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.4"
+    },
+    {
+      "name": "matplotlib",
+      "version": "3.11.1"
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0"
+    },
+    {
+      "name": "narwhals",
+      "version": "2.27.1"
+    },
+    {
+      "name": "networkx",
+      "version": "3.7"
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.2"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3"
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0"
+    },
+    {
+      "name": "pip",
+      "version": "25.2"
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0"
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0"
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.3"
+    },
+    {
+      "name": "pytest",
+      "version": "9.1.1"
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0"
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3"
+    },
+    {
+      "name": "scikit-learn",
+      "version": "1.9.0"
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.1"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0"
+    },
+    {
+      "name": "six",
+      "version": "1.17.0"
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0"
+    },
+    {
+      "name": "threadpoolctl",
+      "version": "3.7.0"
+    },
+    {
+      "name": "torch",
+      "version": "2.14.0+cu130"
+    },
+    {
+      "name": "torchvision",
+      "version": "0.29.0+cu130"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0"
+    }
+  ],
+  "steps": [
+    {
+      "name": "isolated_imports",
+      "arguments": [
+        "-I",
+        "-c",
+        "import json,sys,torch,torchvision,numpy,yaml,matplotlib,sklearn,pytest; from pathlib import Path; mods=[torch,torchvision,numpy,yaml,matplotlib,sklearn,pytest]; assert all(Path(m.__file__).is_relative_to(Path(sys.prefix)) for m in mods); print(json.dumps({'python':sys.version.split()[0],'isolated_dependencies':True,'cuda_available':torch.cuda.is_available(),'versions':{m.__name__:m.__version__ for m in mods}}))"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/isolated_imports.log",
+      "log_sha256": "929fe773ddfce705cd30a86fb32cd71cc484d8ebb40b8f126852ecd1b97cf407"
+    },
+    {
+      "name": "pip_check",
+      "arguments": [
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/pip_check.log",
+      "log_sha256": "85126a62a8304b7e60b85b313d18d62951e9b7c87946f8fd3ba89f402d478c80"
+    },
+    {
+      "name": "installed_packages",
+      "arguments": [
+        "-m",
+        "pip",
+        "list",
+        "--format=json"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/installed_packages.log",
+      "log_sha256": "b3721cb53dfa1698ca54e17a3dccd03fdf0540b0d25d9ba963b5a92daf77c850"
+    },
+    {
+      "name": "clean_smoke",
+      "arguments": [
+        "-m",
+        "scripts.train",
+        "--config",
+        "configs/minivit.yaml",
+        "--epochs",
+        "2",
+        "--max-batches",
+        "2",
+        "--output-dir",
+        "outputs/stage18_acceptance/clean_smoke_minivit"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/clean_smoke.log",
+      "log_sha256": "76a6e3b97119e488d388bd96d516a709316de53a3ca72e2d2d040db0ca9a0506"
+    },
+    {
+      "name": "clean_prediction",
+      "arguments": [
+        "-m",
+        "scripts.predict",
+        "--checkpoint",
+        "outputs/advanced/stage16/formal/fine_tune/train_42/best.pt",
+        "--image",
+        "assets/advanced/stage17/samples/core50_fine_tune_correct_1.png",
+        "--attention",
+        "both",
+        "--device",
+        "auto",
+        "--expected-sha256",
+        "14e52af049050e20550507feff08bc79874edf66a1b544778972629089b95841",
+        "--output-dir",
+        "outputs/stage18_acceptance/clean_prediction"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/clean_prediction.log",
+      "log_sha256": "5fa52380ce28963acca35d99b1329306b576b7cd8ab510f332bbb4e5489a80fa"
+    },
+    {
+      "name": "clean_pytest",
+      "arguments": [
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        "outputs/stage18_acceptance/clean_pytest_temp"
+      ],
+      "exit_code": 0,
+      "log": "outputs/stage18_acceptance/clean_pytest.log",
+      "log_sha256": "c7c13fab8ee1016d17d052b9036ebe335013c0af90e5ba7bf5fd13d8443384a2"
+    }
+  ],
+  "tests": {
+    "passed": 479,
+    "seconds": 154.97
+  },
+  "smoke": {
+    "status": "completed",
+    "output_dir": "outputs/stage18_acceptance/clean_smoke_minivit",
+    "epochs": 2,
+    "max_batches": 2,
+    "formal_result": false
+  },
+  "prediction": {
+    "output_dir": "outputs/stage18_acceptance/clean_prediction",
+    "report_sha256": "64cb19f7e0ab790821d82db5f27694d34fe04d75f2fab6195c21c88186f6ad49"
+  },
+  "scope": "Clean Python dependency environment using current checkout, preexisting local datasets and original checkpoint; not a clean clone, new formal training or a new official test evaluation.",
+  "review_head": "2ed2a93fb105f7518dd360adf105f334c8f02238",
+  "review_worktree_dirty": true
+}

@@ -1,0 +1,294 @@
+{
+  "created_at_utc": "2026-10-11T04:54:29.827684+00:00",
+  "review_head": "2ed2a93fb105f7518dd360adf105f334c8f02238",
+  "review_worktree_dirty": true,
+  "owner_acceptance": {
+    "date_local": "2026-10-11",
+    "status": "accepted_with_legacy_provenance_exception",
+    "owner_reply": "OK听你的建议",
+    "exception": "Seven basic historical evaluations lack the original evaluation run Git commit; retained as historical references with this limitation disclosed.",
+    "historical_records_preserved": true,
+    "official_tests_rerun_for_acceptance": false,
+    "scope_exclusions": ["clean clone with fresh data downloads", "GitHub upload", "release creation", "license selection"]
+  },
+  "static_scan": {
+    "forbidden_files": [],
+    "files_over_10_mib": [],
+    "absolute_path_locations": [],
+    "credential_pattern_files": []
+  },
+  "static_scan_scope": "Tracked and non-ignored candidate files; credential format scan, not a security certification.",
+  "legacy_basic_tests": [
+    {
+      "experiment": "minivit_baseline",
+      "metrics_path": "outputs/minivit_baseline/evaluation/metrics.json",
+      "metrics_sha256": "4ee0af0f70987f2c4b55b695a4792b7a40bc983b364a9faf0245aa7c92c57452",
+      "checkpoint_path": "outputs/minivit_baseline/best.pt",
+      "checkpoint_sha256": "250e2cc425c7aa080da37be036c734d31548acc6d563d7daf4b6ff72aa6726a4",
+      "test_accuracy": 0.8065,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/minivit_baseline/evaluation/predictions.csv",
+        "sha256": "d2085efb5132f32935acf36dd6d5b87068e360dfd78a2a6a2331bcd41a85afaa",
+        "num_samples": 10000,
+        "correct_count": 8065
+      }
+    },
+    {
+      "experiment": "cnn_baseline",
+      "metrics_path": "outputs/cnn_baseline/evaluation/metrics.json",
+      "metrics_sha256": "b22bccdf119cf3afae7f491e164a09157446c322ace4b38af9f7446ab4f5c859",
+      "checkpoint_path": "outputs/cnn_baseline/best.pt",
+      "checkpoint_sha256": "c20802b84993ae29c0b789ab600d2fcdc33fad7a34c61f269273ef25d0a8e95a",
+      "test_accuracy": 0.8829,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/cnn_baseline/evaluation/predictions.csv",
+        "sha256": "2b3b2c2a26a5cc9d05280bb278df731d235c33427f7dc2e6fb66c7e3c0009582",
+        "num_samples": 10000,
+        "correct_count": 8829
+      }
+    },
+    {
+      "experiment": "ablation_patch_p2_d6_aug_seed42",
+      "metrics_path": "outputs/ablation_patch_p2_d6_aug_seed42/evaluation/metrics.json",
+      "metrics_sha256": "652c7288d30321afccac26936251c47c83a1be9cd9a2f591ab81df03a37ad01d",
+      "checkpoint_path": "outputs/ablation_patch_p2_d6_aug_seed42/best.pt",
+      "checkpoint_sha256": "5964446c5287478a83e9dc9cbe8d4847fe6bb7d5cd623ec2008d772a00c3e008",
+      "test_accuracy": 0.7894,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/ablation_patch_p2_d6_aug_seed42/evaluation/predictions.csv",
+        "sha256": "92e510ad77683e3ef471d87ba2503a10c267a306bd229803424338753c73feb2",
+        "num_samples": 10000,
+        "correct_count": 7894
+      }
+    },
+    {
+      "experiment": "ablation_patch_p8_d6_aug_seed42",
+      "metrics_path": "outputs/ablation_patch_p8_d6_aug_seed42/evaluation/metrics.json",
+      "metrics_sha256": "649bc41533a24ca8754472f86f626c8695b46e5a8fe4487ffb3e42132ea74456",
+      "checkpoint_path": "outputs/ablation_patch_p8_d6_aug_seed42/best.pt",
+      "checkpoint_sha256": "ab5d6a70d8dddb93fb14febcb3d6fd45d10bb3b8e385503f0f88dd2c5c58f890",
+      "test_accuracy": 0.7638,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/ablation_patch_p8_d6_aug_seed42/evaluation/predictions.csv",
+        "sha256": "24b060d1a9e95890ea869148098e46155486f80fbac56a82185fd5595f1c7c19",
+        "num_samples": 10000,
+        "correct_count": 7638
+      }
+    },
+    {
+      "experiment": "ablation_depth_p4_d3_aug_seed42",
+      "metrics_path": "outputs/ablation_depth_p4_d3_aug_seed42/evaluation/metrics.json",
+      "metrics_sha256": "fea136d1f83d37f47732aaeab895d253737c7fcbaded5dbed42b588ff6569b69",
+      "checkpoint_path": "outputs/ablation_depth_p4_d3_aug_seed42/best.pt",
+      "checkpoint_sha256": "2279e7cf1c4d37b32c287b738e1580048f5d10f4b7288f8a2452a5f52580175d",
+      "test_accuracy": 0.8027,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/ablation_depth_p4_d3_aug_seed42/evaluation/predictions.csv",
+        "sha256": "dbe87390fe5b787e097d8b697150e50d443206026d61b4135af8566c8135fc7d",
+        "num_samples": 10000,
+        "correct_count": 8027
+      }
+    },
+    {
+      "experiment": "ablation_depth_p4_d9_aug_seed42",
+      "metrics_path": "outputs/ablation_depth_p4_d9_aug_seed42/evaluation/metrics.json",
+      "metrics_sha256": "5cc0415d24f124c427701e1ee4ccd0ff303ea57735fe203cf265e7febe1b1e74",
+      "checkpoint_path": "outputs/ablation_depth_p4_d9_aug_seed42/best.pt",
+      "checkpoint_sha256": "114a8711b267689c0d6397d83d0704a930467dda42cb8d5727aa7c16704191b5",
+      "test_accuracy": 0.8036,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/ablation_depth_p4_d9_aug_seed42/evaluation/predictions.csv",
+        "sha256": "a92b6194143ac80fac64f8efff800049d0424686b1217ee26837b5139cade459",
+        "num_samples": 10000,
+        "correct_count": 8036
+      }
+    },
+    {
+      "experiment": "ablation_aug_p4_d6_noaug_seed42",
+      "metrics_path": "outputs/ablation_aug_p4_d6_noaug_seed42/evaluation/metrics.json",
+      "metrics_sha256": "b406700801849489d3881f9eeca8198132328776179883c26cdb982329b4a1b0",
+      "checkpoint_path": "outputs/ablation_aug_p4_d6_noaug_seed42/best.pt",
+      "checkpoint_sha256": "3187321147e967993f1260d31c09081d59997f9f242e8b7211403b9b2ba51795",
+      "test_accuracy": 0.7093,
+      "original_evaluation_commit": null,
+      "first_results_archive_commit": "1ff4137e90060a6b41cb984832e88f302c53d6c5",
+      "provenance_status": "Legacy result: original evaluation run commit was not recorded.",
+      "predictions": {
+        "path": "outputs/ablation_aug_p4_d6_noaug_seed42/evaluation/predictions.csv",
+        "sha256": "20034ae6d1024b8db8aacf264290557d1f9ec7a0b0104100f5368125fc7a4fa9",
+        "num_samples": 10000,
+        "correct_count": 7093
+      }
+    }
+  ],
+  "advanced_clean_test": {
+    "path": "assets/advanced/stage18/clean_test_summary.json",
+    "sha256": "4b3ca6fc3eaed43408b5286f4d8385fb74227c068c8c2ce3127927cf39d7569c",
+    "evaluation_commits": [
+      "2a4a3e316aea482e79ab40c1e298a723a4e8938e",
+      "2ed2a93fb105f7518dd360adf105f334c8f02238"
+    ]
+  },
+  "corruption_test": {
+    "path": "assets/advanced/stage15/robustness_raw.json",
+    "sha256": "85767358715e3545f3d7debc52d566a601752cbfb01268fc9304cee6cee7ed04",
+    "evaluation_commit": "2a4a3e316aea482e79ab40c1e298a723a4e8938e"
+  },
+  "transfer_test": {
+    "path": "assets/advanced/stage16/test_summary.json",
+    "sha256": "ec1b4ce5f5c02ec2c08af3b499fbaab57c3b2107f6bd5257283c6e9171edb804",
+    "original_path": "outputs/advanced/stage16/evaluation/test_v1/summary.json",
+    "original_sha256": "d62d7c3b37dad95e908a2b8b752a89934130252424631d3534db191184920eb1",
+    "protocol_and_evaluator_commit": "5b5965449e2500fd08061e89c5b7994213545bc8",
+    "commit_basis": "Frozen protocol/evaluator verified against Git; run context documented in STAGE_16_NOTES.md, not embedded in original JSON."
+  },
+  "asset_identities": [
+    {
+      "path": "assets/advanced/stage14/benchmark_raw_5c1dbfb.json",
+      "sha256": "263b6a8d3e9da7ca5e810cd359f6984fe5184b7a8cc98dde3b40a336490238ff"
+    },
+    {
+      "path": "assets/advanced/stage14/benchmark_summary_5c1dbfb.csv",
+      "sha256": "a2cf20cf60e837054ced5236a2fce5f1070ce410d929f7e6c44d728d262dc0c2"
+    },
+    {
+      "path": "assets/advanced/stage15/corruption_grid.png",
+      "sha256": "5e88c3ebe697a4d80226f3cbbcd7551d1a7821eae9057213e1427ae57872085e"
+    },
+    {
+      "path": "assets/advanced/stage15/robustness_conditions.csv",
+      "sha256": "16868c7edb5ad80462b390e0e94fafc076d372e033c94a76152ade3a718ee6f6"
+    },
+    {
+      "path": "assets/advanced/stage15/robustness_raw.json",
+      "sha256": "85767358715e3545f3d7debc52d566a601752cbfb01268fc9304cee6cee7ed04"
+    },
+    {
+      "path": "assets/advanced/stage15/robustness_summary.csv",
+      "sha256": "8022c5ccb8e93e0ea5e141cce440e9f1020a738d40d4cfba9b194984bafd31c1"
+    },
+    {
+      "path": "assets/advanced/stage16/core50_samples.png",
+      "sha256": "937f22d261a2e429f7a3c809508d834bc5b18293bb201758a7c6f0c6f8205c54"
+    },
+    {
+      "path": "assets/advanced/stage16/dataset_summary.json",
+      "sha256": "e19d1d0138923ea346613ec4b7866642a254eddb12d43783649bf40bf1c8b8ad"
+    },
+    {
+      "path": "assets/advanced/stage16/test_summary.json",
+      "sha256": "ec1b4ce5f5c02ec2c08af3b499fbaab57c3b2107f6bd5257283c6e9171edb804"
+    },
+    {
+      "path": "assets/advanced/stage16/validation_summary.json",
+      "sha256": "8546f352c7078ce856037c65f140917cf7443268b9b5635a96c587c4b2695445"
+    },
+    {
+      "path": "assets/advanced/stage17/advanced_minivit_final_correct_comparison.png",
+      "sha256": "7b9ab9eeb6f402929a5aba0629073ba19226e8c023ee88187c87e212f08d45bf"
+    },
+    {
+      "path": "assets/advanced/stage17/advanced_minivit_final_wrong_comparison.png",
+      "sha256": "d4d267e8edb54e0ebd3b77c4c3cac729647ff0a2981873ad86ca938e7f276a22"
+    },
+    {
+      "path": "assets/advanced/stage17/core50_fine_tune_correct_comparison.png",
+      "sha256": "729f080aa2d0402a91be632d79e2c9df1796c1cc97d1935176c9698fa6255ee9"
+    },
+    {
+      "path": "assets/advanced/stage17/core50_fine_tune_wrong_comparison.png",
+      "sha256": "b6c433b529e7d86c5a2889648a5d16eead4fe18d2d3354544aed2f59afdd52fb"
+    },
+    {
+      "path": "assets/advanced/stage17/diagnostics.json",
+      "sha256": "38c34fdac040c19b8d93aa2d7a40f1462e8233cffd20e585679c08c63d4ba978"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/advanced_minivit_final_correct_1.png",
+      "sha256": "67115c481b1f42510e225a4be163b4fd0227d363a3e89d23e3c74a0c0f95f301"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/advanced_minivit_final_correct_2.png",
+      "sha256": "71be9dfe101f6a2c0abe68729f76d9312eb778389a00a1f3cb3f8e6b75c84dc8"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/advanced_minivit_final_wrong_1.png",
+      "sha256": "6e0f3b006f3b0237f03cc4d47a50bc145d2a52df29d30d905476ee392ea4580b"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/advanced_minivit_final_wrong_2.png",
+      "sha256": "9337a2bd5505a9c5c9f7a42c72168bba1ab71c2b1548e4b8fe1a91cffe870e78"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/core50_fine_tune_correct_1.png",
+      "sha256": "a73737b22e500852f5fe092cab8e26eb14e270b38c6f951e56ce7877d94ee56e"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/core50_fine_tune_correct_2.png",
+      "sha256": "5a6cda114e04b4214304b6cd5da80ea60eed18d4d407700823acfc56a858e8f7"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/core50_fine_tune_wrong_1.png",
+      "sha256": "a88c092de10ed084a87a72d6182b390ffaa62bddd42a17d318a1f44d15fd4bf2"
+    },
+    {
+      "path": "assets/advanced/stage17/samples/core50_fine_tune_wrong_2.png",
+      "sha256": "c7d0645de3b88954cbb81623e04e7b9e10659773ff26bdb422bf0fa4839e160d"
+    },
+    {
+      "path": "assets/advanced/stage18/clean_test_summary.json",
+      "sha256": "4b3ca6fc3eaed43408b5286f4d8385fb74227c068c8c2ce3127927cf39d7569c"
+    },
+    {
+      "path": "assets/advanced/stage18/environment_acceptance.json",
+      "sha256": "8281c8315dcc6f8fdaebc0c423f1febc1e98ba4740af0ebf2c56e9879ff34e99"
+    },
+    {
+      "path": "assets/attention/minivit_attention_examples.png",
+      "sha256": "963f822fe6dba21c21394c5e16c7ffe45fd346716d1794b3bbe505daeb25b8d7"
+    },
+    {
+      "path": "assets/confusion_matrices/cnn_baseline.png",
+      "sha256": "00caca001893d221b0f3acdb66af60620465e552cfb9c75556b70db0276280d0"
+    },
+    {
+      "path": "assets/confusion_matrices/minivit_baseline.png",
+      "sha256": "abf5de612bf858479caaa4cbdc3b87828da0698385221f8c3795ec330f13ee7b"
+    },
+    {
+      "path": "assets/error_cases/cnn_baseline.png",
+      "sha256": "33734b5a03ff5933e49673ae4ef758e0804338b980425137c2d8fc94e6c36c04"
+    },
+    {
+      "path": "assets/error_cases/minivit_baseline.png",
+      "sha256": "cac9e14ce5a4831aaeb929d9ff2b7223e84e3979a15b6bc326d0e986af194ecf"
+    },
+    {
+      "path": "assets/training_curves/cnn_baseline.png",
+      "sha256": "4c1f8d4b938a35c711b7a16ab4bb343c7f6e8e2ef1e206f90acfd031005a940f"
+    },
+    {
+      "path": "assets/training_curves/minivit_baseline.png",
+      "sha256": "d37ec7b0046a7c1fe7afc9c0e459828dfb88178680a7004bbb39abc4ff9ed009"
+    }
+  ],
+  "legacy_limitation": "A later review/archive commit is not an original execution commit; no missing history has been fabricated."
+}

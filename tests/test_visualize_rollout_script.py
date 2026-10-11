@@ -2,9 +2,31 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 import scripts.visualize_rollout as rollout_script
+
+
+def test_published_metadata_uses_relative_checkpoint_without_mutating_runtime():
+    """Keep artifact paths portable and preserve original metadata. / 路径可移植且不改原始元数据。"""
+    original = {"checkpoint": "local-only", "checkpoint_sha256": "frozen_hash"}
+    runtime = SimpleNamespace(
+        checkpoint_path=rollout_script.PROJECT_ROOT / "outputs/example/best.pt",
+        metadata=lambda: dict(original),
+    )
+    result = rollout_script.portable_metadata(runtime)
+    assert result["checkpoint"] == "outputs/example/best.pt"
+    assert result["checkpoint_sha256"] == "frozen_hash"
+    assert original["checkpoint"] == "local-only"
+
+
+def test_published_metadata_rejects_checkpoint_outside_project():
+    """Do not publish external absolute paths. / 项目外路径拒绝发布，而非泄漏绝对路径。"""
+    runtime = SimpleNamespace(checkpoint_path=rollout_script.PROJECT_ROOT.parent / "outside/best.pt",
+                              metadata=lambda: {})
+    with pytest.raises(ValueError):
+        rollout_script.portable_metadata(runtime)
 
 
 def test_case_selection_uses_first_distinct_labels_for_each_status(monkeypatch):

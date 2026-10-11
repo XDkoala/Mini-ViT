@@ -1,0 +1,71 @@
+{
+  "created_at_utc": "2026-10-11T03:54:01.757894+00:00",
+  "metadata": {
+    "git_commit": "2ed2a93fb105f7518dd360adf105f334c8f02238",
+    "git_is_dirty": false
+  },
+  "protocol_path": "configs/advanced/stage18/final_evaluation.json",
+  "protocol_sha256": "D1BF96C8D242126C82C9A4D9A4A0BF4E4D34CAD71D8FF8F81830F56404E4D0C4",
+  "evaluator_blob": "4ce2edd171f61e2c579774a2efb98430b737389f",
+  "rows": [
+    {
+      "train_seed": 42,
+      "test_accuracy": 0.8638,
+      "test_loss": 0.4368526804924011,
+      "num_samples": 10000,
+      "evaluation_commit": "2a4a3e316aea482e79ab40c1e298a723a4e8938e",
+      "reused": true,
+      "evaluation_batch_size": 256,
+      "checkpoint_path": "outputs/advanced/stage12/formal/r3_cutmix_alpha05/split_42__train_42/best.pt",
+      "checkpoint_sha256": "D7D1F42C5DE6BB742A1196E70D16B49CDB45B79F986C69F65477FD65E7DB7309",
+      "evidence_path": "assets/advanced/stage15/robustness_raw.json",
+      "evidence_sha256": "85767358715E3545F3D7DEBC52D566A601752CBFB01268FC9304CEE6CEE7ED04"
+    },
+    {
+      "experiment_name": "stage13_r3_cutmix05_split42_train123",
+      "checkpoint_path": "outputs/advanced/stage13/r3_cutmix05/split_42__train_123/best.pt",
+      "checkpoint_epoch": 98,
+      "checkpoint_sha256": "9359EF01AF998F7A472662FD30001F0B39BD677A785434AA2FE5C47EDCA0B490",
+      "test_loss": 0.4379514441490173,
+      "test_accuracy": 0.8632,
+      "num_samples": 10000,
+      "num_classes": 10,
+      "is_partial_evaluation": false,
+      "max_batches": null,
+      "train_seed": 123,
+      "reused": false,
+      "evaluation_commit": "2ed2a93fb105f7518dd360adf105f334c8f02238",
+      "evaluation_batch_size": 128,
+      "evidence_path": "outputs/advanced/stage18/clean_test/train_123/metrics.json",
+      "evidence_sha256": "E7818272251A43EBE25898153794D677502A5FF6E6DE10A0797F2ABE66ECECE3",
+      "predictions_sha256": "AFCAB926B7604B26D275D2A11C807E1A0DF2CC5E1F7D58AEAC50CC468ADE31EC"
+    },
+    {
+      "experiment_name": "stage13_r3_cutmix05_split42_train2026",
+      "checkpoint_path": "outputs/advanced/stage13/r3_cutmix05/split_42__train_2026/best.pt",
+      "checkpoint_epoch": 94,
+      "checkpoint_sha256": "8E40E191A5FA2385E68EE79616F3BB40A3BDF0C1D5DF2D277D95E0EDECC498C8",
+      "test_loss": 0.42928199071884154,
+      "test_accuracy": 0.8608,
+      "num_samples": 10000,
+      "num_classes": 10,
+      "is_partial_evaluation": false,
+      "max_batches": null,
+      "train_seed": 2026,
+      "reused": false,
+      "evaluation_commit": "2ed2a93fb105f7518dd360adf105f334c8f02238",
+      "evaluation_batch_size": 128,
+      "evidence_path": "outputs/advanced/stage18/clean_test/train_2026/metrics.json",
+      "evidence_sha256": "7CF29078FBE0B42725F5055DFBB847259F81244974B7BCBCBD8861596D39FA1F",
+      "predictions_sha256": "C035B8DAE3D3A3A1E9C6DFE12C0649486BB38402DE92D61A94F6C218688ABBCF"
+    }
+  ],
+  "statistics": {
+    "mean_accuracy": 0.8626,
+    "sample_std_accuracy": 0.0015874507866387474,
+    "seed_count": 3,
+    "std_ddof": 1,
+    "interpretation": "Training-seed variability on one fixed test set; not a confidence interval."
+  },
+  "protocol_note": "Seed 42 reuses Stage 15 FP32 batch 256; new seeds use frozen checkpoint FP32 batch 128. No test-time augmentation or model reselection."
+}

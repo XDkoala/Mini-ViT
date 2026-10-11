@@ -6,6 +6,10 @@
 
 基础结果保留如下。进阶部分已完成优化、正则化、多 seed 对照、效率与扰动评估、CORe50 迁移以及 Attention Rollout/单图推理；结果见 [进阶实验总账](notes/ADVANCED_EXPERIMENT_RESULTS.md)，使用说明见 [阶段 17 笔记](notes/STAGE_17_NOTES.md)。
 
+冻结的 advanced MiniViT 在 train seeds 42、123、2026 上的最终 CIFAR-10 clean test 分别为 86.38%、86.32%、86.08%，均值 ± 样本标准差为 **86.260 ± 0.159%**（同一测试集，非置信区间）。评估协议、版本与哈希见 [阶段 18 笔记](notes/STAGE_18_NOTES.md)及[结构化结果](assets/advanced/stage18/clean_test_summary.json)。
+
+项目材料：[最终实验报告](notes/FINAL_EXPERIMENT_REPORT.md) · [复现指南与资源预算](notes/REPRODUCTION_GUIDE.md) · [项目介绍与技术提纲](notes/PROJECT_PRESENTATION.md)。完整数据集和 checkpoint 不随 Git 仓库分发。独立新环境的安装、冒烟、推理及 479 项测试已通过；阶段 18 于 2026-10-11 完成验收，项目所有者接受基础旧评估缺原运行 commit 的历史例外，相关结果仅作为带限制的历史参照。
+
 ## 项目亮点
 
 - 从零实现 MiniViT 核心结构，不依赖 `torchvision.models` 中的现成 ViT。
@@ -17,9 +21,9 @@
 - 生成训练曲线、混淆矩阵、高置信错误案例和最后一层 CLS Attention 热力图。
 - 使用 pytest 覆盖数据、模型 shape/梯度、tiny overfit、训练引擎、评估入口和可视化契约。
 
-## 最终结果
+## 基础项目最终结果
 
-所有模型都训练 100 epoch，并根据验证准确率选择唯一的 `best.pt`。模型与配置全部冻结后，才在 CIFAR-10 官方测试集上进行完整评估；测试结果没有用于重新调参。
+下表中的基础模型与消融实验都训练 100 epoch，并根据验证准确率选择唯一的 `best.pt`。模型与配置全部冻结后，才在 CIFAR-10 官方测试集上进行完整评估；测试结果没有用于重新调参。
 
 | 模型 / 实验 | 参数量 | Best Val Acc | Best Epoch | Test Loss | Test Acc |
 |---|---:|---:|---:|---:|---:|
@@ -58,6 +62,20 @@ Depth 3、6、9 的测试准确率分别为 80.27%、80.65%、80.36%。增加到
 ### Data Augmentation
 
 移除 RandomCrop 与 RandomHorizontalFlip 后，训练准确率更高，但测试准确率从 80.65% 降至 70.93%。这说明模型更容易记忆固定训练图片，却显著损失了对未见数据的泛化能力；基础数据增强是当前 MiniViT 的关键正则化来源。
+
+## Advanced Experiments
+
+进阶实验保持 MiniViT 的推理结构不变，增加优化、正则化、多 seed、效率、扰动和迁移证据。主要结果如下，不同任务与 split 的指标不能混用：
+
+| 问题 | 结果 | 结论边界 |
+|---|---|---|
+| CutMix 对 R0 的三 seed validation 改善 | +2.947 ± 0.510 pp | 配对提升，未做显著性检验 |
+| 冻结配方的三 seed clean test | 86.260 ± 0.159% | 同一个测试集；CNN 仍更高 |
+| AMP 训练效率 | 约 1.455× 加速，allocated 峰值减少 26.47% | 当前硬件、计时协议与单 seed 对照 |
+| 18 条扰动条件的 test macro | 进阶 ViT 69.01%，CNN 68.77% | 均为 seed 42；不同扰动优劣不同 |
+| CORe50 test | Fine-tune 53.82%，Scratch 36.88% | 单 seed、同实例跨 session，不是新实例泛化 |
+
+完整失败实验和协议见[最终报告](notes/FINAL_EXPERIMENT_REPORT.md)及[进阶总账](notes/ADVANCED_EXPERIMENT_RESULTS.md)。既有结果复核与新训练入口分开说明，避免覆盖冻结产物，详见[复现指南](notes/REPRODUCTION_GUIDE.md)。
 
 ## 模型结构
 
@@ -156,17 +174,19 @@ Mini-ViT/
 ├── configs/
 │   ├── minivit.yaml
 │   ├── cnn.yaml
-│   └── ablations/
-│       ├── patch_p2.yaml
-│       ├── patch_p8.yaml
-│       ├── depth_d3.yaml
-│       ├── depth_d9.yaml
-│       └── no_augmentation.yaml
+│   ├── ablations/             # 基础结构与增强消融
+│   └── advanced/              # 阶段 10–18 的冻结协议与配方
 ├── notes/
 │   ├── BASIC_PROJECT_WORKFLOW.md
 │   ├── ADVANCED_PROJECT_WORKFLOW.md
 │   ├── EXPERIMENT_RESULTS.md
-│   └── STAGE_0_NOTES.md ... STAGE_9_NOTES.md
+│   ├── ADVANCED_EXPERIMENT_RESULTS.md
+│   ├── ADVANCED_MINIVIT_FINAL.md
+│   ├── DATASET_CARD.md
+│   ├── FINAL_EXPERIMENT_REPORT.md
+│   ├── REPRODUCTION_GUIDE.md
+│   ├── PROJECT_PRESENTATION.md
+│   └── STAGE_0_NOTES.md ... STAGE_18_NOTES.md
 ├── src/
 │   ├── config.py
 │   ├── data.py
@@ -174,13 +194,19 @@ Mini-ViT/
 │   ├── metrics.py
 │   ├── utils.py
 │   ├── visualization.py
+│   ├── amp.py / schedulers.py / gradients.py / regularization.py
+│   ├── benchmarking.py / corruptions.py
+│   ├── core50.py / transfer.py / inference.py
 │   └── models/
 │       ├── minivit.py
 │       └── cnn.py
 ├── scripts/
 │   ├── train.py
 │   ├── evaluate.py
-│   └── visualize.py
+│   ├── visualize.py
+│   ├── aggregate.py / benchmark.py / robustness.py
+│   ├── prepare_core50.py / train_transfer.py / evaluate_transfer.py
+│   └── predict.py / visualize_rollout.py / final_evaluation.py
 ├── tests/
 ├── assets/
 ├── data/       # Git ignored
@@ -199,7 +225,7 @@ Mini-ViT/
 
 ## 环境要求
 
-本项目最终验收环境：
+本项目已有环境的验证记录：
 
 ```text
 OS: Windows
@@ -254,6 +280,8 @@ python -m pytest -q
 ```text
 184 passed
 ```
+
+2026-10-11 的最新回归为 **479 passed**，原环境与按 requirements.txt 安装的独立新环境均通过。新环境验证复用了本地数据和冻结权重，不等同于干净克隆后完成全部数据下载或长训练，详见[环境验收记录](assets/advanced/stage18/environment_acceptance.json)。
 
 ### 5. 数据准备
 
@@ -450,7 +478,7 @@ python -m pytest tests/test_visualization.py -q
 
 ## 后续方向
 
-1. 完成阶段 18 的最终冻结报告与项目包装。
+1. 按需整理发布版本与许可证；阶段 18 已完成带历史追溯例外的验收，尚未上传本次收尾变更或创建 release。
 2. 将目标域学习率、分辨率和新实例划分注册为新的迁移实验。
 3. 增加 seed 或独立数据划分，检验观察到的优势是否稳定。
 4. 与标准 ResNet-18 或更成熟的小图像 ViT 方法比较。
@@ -464,6 +492,10 @@ python -m pytest tests/test_visualization.py -q
 - [阶段 10：进阶实验协议与基础设施](notes/STAGE_10_NOTES.md)
 - [阶段 16：CORe50 迁移学习](notes/STAGE_16_NOTES.md)
 - [阶段 17：Attention Rollout 与单图推理](notes/STAGE_17_NOTES.md)
+- [阶段 18：冻结评估与报告](notes/STAGE_18_NOTES.md)
+- [最终实验报告](notes/FINAL_EXPERIMENT_REPORT.md)
+- [复现指南与资源预算](notes/REPRODUCTION_GUIDE.md)
+- [项目介绍与技术提纲](notes/PROJECT_PRESENTATION.md)
 - [阶段 0：环境与项目骨架](notes/STAGE_0_NOTES.md)
 - [阶段 1：CIFAR-10 数据管线](notes/STAGE_1_NOTES.md)
 - [阶段 2：MiniViT 基础零件](notes/STAGE_2_NOTES.md)

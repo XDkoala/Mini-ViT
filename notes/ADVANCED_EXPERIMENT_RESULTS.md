@@ -4,7 +4,7 @@
 
 创建日期：2026-09-25
 
-当前状态：阶段 11–16 的实验已记录；阶段 17 的 Rollout 与单图推理工具也已完成
+当前状态：阶段 11–18 的实验结果已记录；最终报告与技术验收已完成。2026-10-11 项目所有者接受 7 组基础旧评估缺原运行 commit 的历史例外；这些结果保留为带限制的历史参照，不补造版本记录。
 
 ## 1. 记录规则
 
@@ -178,7 +178,24 @@ Fine-tune 比 Scratch 高 17.64 pp；三组最佳准确率排序符合实验前�
 
 单图入口 `scripts/predict.py` 根据 checkpoint 使用对应类别和预处理，CPU/CUDA 均已实际运行；完整测试 463 passed。案例不作为新的整体性能证据，热图也不作为因果解释。代码职责、命令与观察见 [STAGE_17_NOTES.md](STAGE_17_NOTES.md)。
 
-## 13. 后续更新要求
+## 13. 阶段 18：冻结多 seed clean test
+
+阶段 18 按阶段 13 的冻结配方与 checkpoint 补齐 seed 123、2026 的官方 10,000 张 clean test，并复用阶段 15 的 seed 42 结果。没有新增训练、重新选 seed 或根据 test 调参。
+
+| Train seed | Best epoch | Test accuracy | Test loss | Evaluation commit |
+|---:|---:|---:|---:|---|
+| 42 | 98 | 86.38% | 0.436853 | `2a4a3e3`（阶段 15 复用） |
+| 123 | 98 | 86.32% | 0.437951 | `2ed2a93` |
+| 2026 | 94 | 86.08% | 0.429282 | `2ed2a93` |
+| Mean ± sample std | — | **86.260 ± 0.159%** | — | n=3，ddof=1 |
+
+`±` 描述固定测试集上的训练 seed 波动，不是置信区间。seed 42 为 FP32 batch 256，其余为冻结 checkpoint 配置中的 FP32 batch 128；同测试集、同测试变换、无测试时增强，微小浮点差异的边界随结果保留。
+
+相较基础 MiniViT 的单次 test 80.65%，最终均值数值上提高 5.61 pp；CNN 基线仍更高，不能宣称 ViT 已全面超过 CNN。完整权重、协议和输出哈希见 [clean_test_summary.json](../assets/advanced/stage18/clean_test_summary.json)，统计解释见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。
+
+跨阶段结论见 [最终实验报告](FINAL_EXPERIMENT_REPORT.md)，运行依赖和资源预算见 [复现指南](REPRODUCTION_GUIDE.md)，项目介绍与面试材料见 [展示材料](PROJECT_PRESENTATION.md)。这些材料不改变冻结协议，也不新增训练或 test 筛选。
+
+## 14. 后续更新要求
 
 每组正式实验结束后：
 

@@ -32,6 +32,13 @@ from src.utils import collect_git_metadata  # noqa: E402
 from src.visualization import plot_attention_comparison  # noqa: E402
 
 
+def portable_metadata(runtime: InferenceRuntime) -> dict[str, object]:
+    """Keep published checkpoint paths project-relative. / 发布记录不携带本机绝对路径。"""
+    metadata = runtime.metadata()
+    metadata["checkpoint"] = runtime.checkpoint_path.resolve().relative_to(PROJECT_ROOT).as_posix()
+    return metadata
+
+
 def validation_samples(runtime: InferenceRuntime, limit: int) -> list[dict[str, object]]:
     """Read only the registered validation split, with stable source IDs."""
 
@@ -219,7 +226,7 @@ def main(argv: list[str] | None = None) -> dict[str, object]:
         )
         cases = generate_candidate(runtime, candidate["name"], selected, corruption, output_dir)
         result["candidates"].append({
-            "name": candidate["name"], **runtime.metadata(),
+            "name": candidate["name"], **portable_metadata(runtime),
             "selection_scanned_samples": scanned, "cases": cases,
         })
         print(f"{candidate['name']}: {scanned} validation samples scanned, {len(cases)} clean/corrupted rows saved.")
