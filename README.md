@@ -4,7 +4,7 @@
 
 项目强调的不是堆叠训练技巧或追求最高精度，而是建立一条正确、可运行、可解释、可测试、可复现的深度学习工程链路。
 
-**项目状态：阶段 0–18 已完成，代码、轻量结果与文档已上传 GitHub。** 当前未创建 release，也未添加代码许可证。
+**项目状态：阶段 0–18 已完成，代码、轻量结果与文档已上传 GitHub。** 项目原创代码及文档采用 [MIT 许可证](LICENSE)；当前未创建 release。第三方材料的许可例外见下文。
 
 冻结的 advanced MiniViT 在 train seeds 42、123、2026 上的最终 CIFAR-10 clean test 分别为 86.38%、86.32%、86.08%，均值 ± 样本标准差为 **86.260 ± 0.159%**（同一测试集，非置信区间）。评估协议、版本与哈希见 [阶段 18 笔记](notes/STAGE_18_NOTES.md)及[结构化结果](assets/advanced/stage18/clean_test_summary.json)。
 
@@ -516,7 +516,7 @@ python -m pytest tests/test_visualization.py -q
 
 ## 后续方向
 
-1. 按需创建 release/tag，并由项目所有者选择代码许可证；当前主线代码、结果与文档已提交上传。
+1. 按需创建 release/tag；代码许可证已选择 MIT，第三方材料继续遵守原许可。
 2. 将目标域学习率、分辨率和新实例划分注册为新的迁移实验。
 3. 增加 seed 或独立数据划分，检验观察到的优势是否稳定。
 4. 与标准 ResNet-18 或更成熟的小图像 ViT 方法比较。
@@ -571,7 +571,14 @@ python -m pytest tests/test_visualization.py -q
 
 ## 许可证
 
-当前仓库尚未添加 LICENSE 文件。在复用或分发代码前，请先补充合适的开源许可证。
+本项目有权授权的原创代码、配置、测试和文档采用 [MIT License](LICENSE)，版权署名为 **Soren Yao**。复用或分发相应内容时，请保留版权及许可声明；许可允许商业使用与闭源衍生，不要求修改后的代码必须开源。
+
+授权范围不包含第三方权利：
+
+- PyTorch 等第三方依赖保留各自许可证，本项目不对它们重新授权。
+- CIFAR-10、CORe50 图片及包含这些图片的样例、错误案例、Attention/Rollout 图不因仓库的 MIT LICENSE 而变为 MIT 材料；图片部分继续受原始来源条款约束。CORe50 来源与核查背景见[数据卡](notes/DATASET_CARD.md)，CIFAR-10 来源见[官方数据集页面](https://www.cs.toronto.edu/~kriz/cifar.html)。
+- 论文、引用和其他第三方内容保留原作者权利。MIT 不代表数据集作者对本项目的认可。
+- 完整数据集和 checkpoint 不随仓库分发；未来发布权重时，应另行说明适用条款和数据来源，不推定代码许可证已覆盖权重。
 
 ## 致谢与参考
 

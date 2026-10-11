@@ -725,7 +725,7 @@ test 前写入冻结清单：
 - 准备 5 分钟技术提纲；
 - 用真实数字更新简历表述；
 - 可选创建 release/tag；
-- 补充 LICENSE 后再鼓励外部复用。
+- 已添加 MIT LICENSE（Soren Yao），外部复用仍需遵守第三方图片与依赖的原许可。
 
 ### 15.3 验收
 
@@ -797,4 +797,4 @@ test 前写入冻结清单：
 
 阶段 10–18 已完成，阶段 18 于 2026-10-11 通过带历史追溯例外的最终验收。不再新增正式训练或根据 test 调参。
 
-独立验收环境位于 Git 忽略的 `outputs/stage18_acceptance/`；核查权重、预测明细和仓库候选文件的记录见 [evidence_audit.json](../assets/advanced/stage18/evidence_audit.json)。项目所有者已接受基础旧测试缺原运行 commit 的历史例外；未知字段继续保留，不能用归档 commit 冒充。技术验收后，代码、轻量结果与文档已提交并上传 GitHub；仍未完成从零下载的干净克隆、完整数据/权重分发、release 或许可证选择。详细记录见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。
+独立验收环境位于 Git 忽略的 `outputs/stage18_acceptance/`；核查权重、预测明细和仓库候选文件的记录见 [evidence_audit.json](../assets/advanced/stage18/evidence_audit.json)。项目所有者已接受基础旧测试缺原运行 commit 的历史例外；未知字段继续保留，不能用归档 commit 冒充。技术验收后，代码、轻量结果与文档已提交并上传 GitHub，原创代码与文档已采用 [MIT 许可证](../LICENSE)。仍未完成从零下载的干净克隆、完整数据/权重分发或 release。详细记录见 [STAGE_18_NOTES.md](STAGE_18_NOTES.md)。

@@ -98,4 +98,4 @@ python -m pytest -q -p no:cacheprovider --basetemp outputs/reproduction_pytest_t
 
 2026-10-11 原环境和独立新环境的全量回归均为 **479 passed**；新环境还通过依赖检查、2轮受限冒烟和单图推理。验证复用了本地数据及原始 checkpoint，不等同于干净克隆后从零获取数据/权重；主要入口已验证，不表示每组正式长训练都重跑。记录见[环境验收 JSON](../assets/advanced/stage18/environment_acceptance.json)。
 
-代码、轻量结果和文档已提交并上传 GitHub。完整数据与 checkpoint 未分发，远程权重获取未验收，也未创建 release。7 组基础旧评估缺原运行 commit 的历史例外已由项目所有者接受，详见[证据核验记录](../assets/advanced/stage18/evidence_audit.json)。代码许可证需由项目所有者选择；数据来源与归属见数据卡，不能把代码许可自动套用于数据或数据派生样例。
+代码、轻量结果和文档已提交并上传 GitHub。完整数据与 checkpoint 未分发，远程权重获取未验收，也未创建 release。7 组基础旧评估缺原运行 commit 的历史例外已由项目所有者接受，详见[证据核验记录](../assets/advanced/stage18/evidence_audit.json)。原创代码与文档采用 [MIT 许可证](../LICENSE)，署名 Soren Yao；数据来源与归属见数据卡，不能把代码许可自动套用于数据集图片、含图片的可视化或其他第三方材料。完整授权范围见 [README 许可证说明](../README.md#许可证)。
