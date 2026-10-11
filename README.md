@@ -485,17 +485,16 @@ python -m pytest tests/test_visualization.py -q
 
 后续实验应建立新的验证协议，不应覆盖当前冻结的基础结果，也不应反复利用 CIFAR-10 test split 调参。
 
-## 学习笔记
+## 学习笔记与项目材料
+
+### 项目工作流
 
 - [基础项目工作流](notes/BASIC_PROJECT_WORKFLOW.md)
 - [进阶项目工作流（阶段 10–18）](notes/ADVANCED_PROJECT_WORKFLOW.md)
-- [阶段 10：进阶实验协议与基础设施](notes/STAGE_10_NOTES.md)
-- [阶段 16：CORe50 迁移学习](notes/STAGE_16_NOTES.md)
-- [阶段 17：Attention Rollout 与单图推理](notes/STAGE_17_NOTES.md)
-- [阶段 18：冻结评估与报告](notes/STAGE_18_NOTES.md)
-- [最终实验报告](notes/FINAL_EXPERIMENT_REPORT.md)
-- [复现指南与资源预算](notes/REPRODUCTION_GUIDE.md)
-- [项目介绍与技术提纲](notes/PROJECT_PRESENTATION.md)
+
+<details>
+<summary>基础学习笔记（阶段 0–9）</summary>
+
 - [阶段 0：环境与项目骨架](notes/STAGE_0_NOTES.md)
 - [阶段 1：CIFAR-10 数据管线](notes/STAGE_1_NOTES.md)
 - [阶段 2：MiniViT 基础零件](notes/STAGE_2_NOTES.md)
@@ -506,7 +505,31 @@ python -m pytest tests/test_visualization.py -q
 - [阶段 7：消融实验](notes/STAGE_7_NOTES.md)
 - [阶段 8：最终评估与可视化](notes/STAGE_8_NOTES.md)
 - [阶段 9：README 与仓库收尾](notes/STAGE_9_NOTES.md)
-- [实验结果总账](notes/EXPERIMENT_RESULTS.md)
+
+</details>
+
+<details>
+<summary>进阶学习笔记（阶段 10–18）</summary>
+
+- [阶段 10：进阶实验协议与基础设施](notes/STAGE_10_NOTES.md)
+- [阶段 11：优化训练栈](notes/STAGE_11_NOTES.md)
+- [阶段 12：小数据正则化](notes/STAGE_12_NOTES.md)
+- [阶段 13：多随机种子确认与统计分析](notes/STAGE_13_NOTES.md)
+- [阶段 14：效率与资源基准](notes/STAGE_14_NOTES.md)
+- [阶段 15：相机扰动与域偏移鲁棒性](notes/STAGE_15_NOTES.md)
+- [阶段 16：CORe50 迁移学习](notes/STAGE_16_NOTES.md)
+- [阶段 17：Attention Rollout 与单图推理](notes/STAGE_17_NOTES.md)
+- [阶段 18：冻结评估、报告与包装](notes/STAGE_18_NOTES.md)
+
+</details>
+
+### 实验与交付材料
+
+- [基础实验结果总账](notes/EXPERIMENT_RESULTS.md)
+- [进阶实验结果总账](notes/ADVANCED_EXPERIMENT_RESULTS.md)
+- [最终实验报告](notes/FINAL_EXPERIMENT_REPORT.md)
+- [复现指南与资源预算](notes/REPRODUCTION_GUIDE.md)
+- [项目介绍与技术提纲](notes/PROJECT_PRESENTATION.md)
 
 ## 许可证
 
