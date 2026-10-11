@@ -4,7 +4,7 @@
 
 项目强调的不是堆叠训练技巧或追求最高精度，而是建立一条正确、可运行、可解释、可测试、可复现的深度学习工程链路。
 
-**项目状态：阶段 0–18 已完成，代码、轻量结果与文档已上传 GitHub。** 项目原创代码及文档采用 [MIT 许可证](LICENSE)；当前未创建 release。第三方材料的许可例外见下文。
+**项目状态：阶段 0–18 已完成，代码、轻量结果与文档已上传 GitHub。** 正式版本入口：[v1.0.0](https://github.com/XDkoala/Mini-ViT/releases/tag/v1.0.0)。项目原创代码及文档采用 [MIT 许可证](LICENSE)，第三方材料的许可例外见下文。
 
 冻结的 advanced MiniViT 在 train seeds 42、123、2026 上的最终 CIFAR-10 clean test 分别为 86.38%、86.32%、86.08%，均值 ± 样本标准差为 **86.260 ± 0.159%**（同一测试集，非置信区间）。评估协议、版本与哈希见 [阶段 18 笔记](notes/STAGE_18_NOTES.md)及[结构化结果](assets/advanced/stage18/clean_test_summary.json)。
 
@@ -516,7 +516,7 @@ python -m pytest tests/test_visualization.py -q
 
 ## 后续方向
 
-1. 按需创建 release/tag；代码许可证已选择 MIT，第三方材料继续遵守原许可。
+1. 后续修复或扩展通过新版本发布，不移动 `v1.0.0` 标签；第三方材料继续遵守原许可。
 2. 将目标域学习率、分辨率和新实例划分注册为新的迁移实验。
 3. 增加 seed 或独立数据划分，检验观察到的优势是否稳定。
 4. 与标准 ResNet-18 或更成熟的小图像 ViT 方法比较。

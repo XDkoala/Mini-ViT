@@ -4,7 +4,7 @@
 
 执行状态（2026-10-11）：基础阶段 0–9 与进阶阶段 10–18 已全部完成，代码、轻量结果及文档已上传 GitHub。本文保留立项时的建议参数、目录示例和时间安排，**不是当前待办清单**；实际实现与命令以 [README](README.md)、[基础工作流](notes/BASIC_PROJECT_WORKFLOW.md)、[进阶工作流](notes/ADVANCED_PROJECT_WORKFLOW.md)为准。项目使用 `notes/` 中的 Markdown 学习笔记，而非必须建立 `.ipynb` 分析目录。
 
-最终结果见[实验报告](notes/FINAL_EXPERIMENT_REPORT.md)，复现条件见[复现指南](notes/REPRODUCTION_GUIDE.md)。验收保留基础旧评估缺原运行 commit 的明确例外；未发布完整数据或权重，未创建 release。原创代码与文档已采用 [MIT 许可证](LICENSE)，第三方材料不在本项目授权范围内。
+最终结果见[实验报告](notes/FINAL_EXPERIMENT_REPORT.md)，复现条件见[复现指南](notes/REPRODUCTION_GUIDE.md)，正式版本入口为 [v1.0.0](https://github.com/XDkoala/Mini-ViT/releases/tag/v1.0.0)。验收保留基础旧评估缺原运行 commit 的明确例外；未发布完整数据或权重。原创代码与文档已采用 [MIT 许可证](LICENSE)，第三方材料不在本项目授权范围内。
 
 ## 1. 为什么做这个项目
 
